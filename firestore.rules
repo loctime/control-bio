@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Colección de usuarios
+    match /users/{userId} {
+      // Lectura: Cualquiera puede leer perfiles públicos
+      allow read: if true;
+      
+      // Escritura: Solo el dueño puede modificar su perfil
+      allow write: if request.auth != null && request.auth.uid == userId;
+      
+      // Validación de datos para creación
+      allow create: if request.auth != null 
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.email == request.auth.token.email
+                    && request.resource.data.username is string
+                    && request.resource.data.username.size() >= 3
+                    && request.resource.data.username.size() <= 20
+                    && request.resource.data.displayName is string
+                    && request.resource.data.displayName.size() >= 1
+                    && request.resource.data.displayName.size() <= 50;
+    }
+    
+    // Colección de enlaces
+    match /links/{linkId} {
+      // Lectura: Solo el dueño puede leer sus enlaces
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      
+      // Escritura: Solo el dueño puede crear/editar/eliminar sus enlaces
+      allow write: if request.auth != null && request.auth.uid == resource.data.userId;
+      
+      // Validación de datos para creación
+      allow create: if request.auth != null 
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.title is string
+                    && request.resource.data.title.size() >= 1
+                    && request.resource.data.title.size() <= 100
+                    && request.resource.data.url is string
+                    && request.resource.data.url.matches('https?://.*')
+                    && request.resource.data.order is number
+                    && request.resource.data.isActive is bool;
+    }
+  }
+}
