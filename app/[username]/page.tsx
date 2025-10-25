@@ -14,7 +14,7 @@ interface ProfilePageProps {
 
 async function getProfileByUsername(username: string) {
   try {
-    const profilesQuery = query(collection(db, "users"), where("username", "==", username))
+    const profilesQuery = query(collection(db, "apps/controlbio/users"), where("username", "==", username))
     const profilesSnap = await getDocs(profilesQuery)
 
     if (profilesSnap.empty) {
@@ -26,7 +26,7 @@ async function getProfileByUsername(username: string) {
 
     // Get user's links
     const linksQuery = query(
-      collection(db, "links"),
+      collection(db, "apps/controlbio/links"),
       where("userId", "==", userId),
       where("isActive", "==", true),
       orderBy("order", "asc"),

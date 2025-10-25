@@ -85,7 +85,7 @@ export default function DashboardPage() {
       if (!user) return
 
       try {
-        const profileRef = doc(db, "users", user.uid)
+        const profileRef = doc(db, "apps/controlbio/users", user.uid)
         const profileSnap = await getDoc(profileRef)
 
         if (profileSnap.exists()) {
@@ -132,20 +132,19 @@ export default function DashboardPage() {
           setUsername(defaultProfile.username)
           setBio(defaultProfile.bio)
           setAvatarUrl(defaultProfile.avatarUrl)
-          setBackgroundColor(defaultProfile.theme.backgroundColor)
-          setTextColor(defaultProfile.theme.textColor)
-          setButtonColor(defaultProfile.theme.buttonColor)
-          setButtonTextColor(defaultProfile.theme.buttonTextColor)
-        }
-
-        // Check if user needs to set up password
-        const userData = profileSnap.exists() ? profileSnap.data() : defaultProfile
-        if (userData && !userData.hasCustomPassword && !userData.autoPassword) {
-          setPasswordSetupOpen(true)
+          setBackgroundColor(defaultProfile.theme?.backgroundColor || "#0a0a0a")
+          setTextColor(defaultProfile.theme?.textColor || "#ffffff")
+          setButtonColor(defaultProfile.theme?.buttonColor || "#ff6b35")
+          setButtonTextColor(defaultProfile.theme?.buttonTextColor || "#ffffff")
+          
+          // Check if user needs to set up password for new profile
+          if (!defaultProfile.hasCustomPassword && !defaultProfile.autoPassword) {
+            setPasswordSetupOpen(true)
+          }
         }
 
         // Load links
-        const linksQuery = query(collection(db, "links"), where("userId", "==", user.uid), orderBy("order", "asc"))
+        const linksQuery = query(collection(db, "apps/controlbio/links"), where("userId", "==", user.uid), orderBy("order", "asc"))
         const linksSnap = await getDocs(linksQuery)
         const linksData = linksSnap.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as Link)
         setLinks(linksData)
@@ -270,7 +269,7 @@ export default function DashboardPage() {
     try {
       if (editingLink) {
         // Update existing link
-        const linkRef = doc(db, "links", editingLink.id)
+        const linkRef = doc(db, "apps/controlbio/links", editingLink.id)
         await updateDoc(linkRef, {
           title: linkTitle,
           url: linkUrl,
@@ -314,7 +313,7 @@ export default function DashboardPage() {
           updatedAt: new Date(),
         }
 
-        const docRef = await addDoc(collection(db, "links"), newLink)
+        const docRef = await addDoc(collection(db, "apps/controlbio/links"), newLink)
         setLinks([...links, { ...newLink, id: docRef.id } as Link])
 
         toast({
@@ -336,7 +335,7 @@ export default function DashboardPage() {
 
   const handleDeleteLink = async (linkId: string) => {
     try {
-      await deleteDoc(doc(db, "links", linkId))
+      await deleteDoc(doc(db, "apps/controlbio/links", linkId))
       setLinks(links.filter((l) => l.id !== linkId))
 
       toast({
@@ -715,7 +714,7 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-2">
                         <Input 
                           type="password" 
-                          value={profile.autoPassword} 
+                          value={profile.autoPassword || ""} 
                           readOnly 
                           className="font-mono"
                         />
@@ -723,7 +722,7 @@ export default function DashboardPage() {
                           variant="ghost" 
                           size="sm"
                           onClick={() => {
-                            navigator.clipboard.writeText(profile.autoPassword)
+                            navigator.clipboard.writeText(profile.autoPassword || "")
                             toast({
                               title: "Copiado",
                               description: "Contraseña copiada al portapapeles",

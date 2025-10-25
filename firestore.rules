@@ -1,9 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Colección de usuarios
-    match /users/{userId} {
-      // Lectura: Cualquiera puede leer perfiles públicos
+    // ===== REGLAS PARA CONTROLBIO (LINK-IN-BIO) =====
+    
+    match /apps/controlbio/users/{userId} {
+      // Lectura: Cualquiera puede leer perfiles públicos (necesario para páginas públicas)
       allow read: if true;
       
       // Escritura: Solo el dueño puede modificar su perfil
@@ -21,8 +22,8 @@ service cloud.firestore {
                     && request.resource.data.displayName.size() <= 50;
     }
     
-    // Colección de enlaces
-    match /links/{linkId} {
+    // Colección de enlaces para ControlBio
+    match /apps/controlbio/links/{linkId} {
       // Lectura: Solo el dueño puede leer sus enlaces
       allow read: if request.auth != null && request.auth.uid == resource.data.userId;
       

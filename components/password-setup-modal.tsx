@@ -56,7 +56,7 @@ export function PasswordSetupModal({ open, onOpenChange, onComplete, user }: Pas
       const hashedPassword = await hashPassword(password)
       
       // Actualizar perfil en Firestore con contraseña hasheada
-      await updateDoc(doc(db, "users", user.uid), {
+      await updateDoc(doc(db, "apps/controlbio/users", user.uid), {
         customPassword: hashedPassword,
         hasCustomPassword: true,
         updatedAt: new Date(),
@@ -90,7 +90,7 @@ export function PasswordSetupModal({ open, onOpenChange, onComplete, user }: Pas
       const hashedAutoPassword = await hashPassword(autoPassword)
       
       // Actualizar perfil en Firestore
-      await updateDoc(doc(db, "users", user.uid), {
+      await updateDoc(doc(db, "apps/controlbio/users", user.uid), {
         autoPassword: autoPassword, // Guardar en texto plano para mostrar al usuario
         customPassword: hashedAutoPassword, // Guardar hasheada para verificación
         hasCustomPassword: false,

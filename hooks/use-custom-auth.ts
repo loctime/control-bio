@@ -30,7 +30,7 @@ export function useCustomAuth() {
       }
 
       // Buscar usuario en Firestore por email
-      const usersQuery = query(collection(db, "users"), where("email", "==", email))
+      const usersQuery = query(collection(db, "apps/controlbio/users"), where("email", "==", email))
       const usersSnap = await getDocs(usersQuery)
       
       if (usersSnap.empty) {

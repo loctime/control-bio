@@ -31,7 +31,7 @@ export default function HomePage() {
       const user = result.user
       
       // Verificar si el usuario ya existe en Firestore
-      const userDoc = await getDoc(doc(db, "users", user.uid))
+      const userDoc = await getDoc(doc(db, "apps/controlbio/users", user.uid))
       
       if (!userDoc.exists()) {
         // Generar contraseña automática
@@ -39,7 +39,7 @@ export default function HomePage() {
         const hashedAutoPassword = await hashPassword(autoPassword)
         
         // Crear perfil para nuevo usuario de Google
-        await setDoc(doc(db, "users", user.uid), {
+        await setDoc(doc(db, "apps/controlbio/users", user.uid), {
           uid: user.uid,
           email: user.email,
           displayName: user.displayName,
