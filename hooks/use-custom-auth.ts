@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { signInWithEmailAndPassword } from "firebase/auth"
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "firebase/auth"
 import { collection, query, where, getDocs } from "firebase/firestore"
 import { auth, db } from "@/lib/firebase"
 import { verifyPassword } from "@/lib/password-utils"
@@ -15,8 +15,7 @@ export function useCustomAuth() {
     setLoading(true)
     
     try {
-      // Primero intentar login normal con Firebase Auth
-      // Esto funcionará para usuarios que se registraron con email/password tradicional
+      // Primero intentar Firebase Auth
       try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password)
         toast({
@@ -25,11 +24,10 @@ export function useCustomAuth() {
         })
         return { success: true, user: userCredential.user }
       } catch (firebaseError: any) {
-        // Si falla Firebase Auth, intentar con nuestro sistema personalizado
         console.log("Firebase Auth falló, intentando sistema personalizado...")
       }
 
-      // Buscar usuario en Firestore por email
+      // Sistema personalizado - buscar en Firestore
       const usersQuery = query(collection(db, "apps/controlbio/users"), where("email", "==", email))
       const usersSnap = await getDocs(usersQuery)
       
@@ -40,11 +38,6 @@ export function useCustomAuth() {
       const userDoc = usersSnap.docs[0]
       const userData = userDoc.data()
 
-      // Verificar si tiene contraseña personalizada
-      if (!userData.customPassword) {
-        throw new Error("Este usuario no tiene contraseña configurada. Usa Google Auth para iniciar sesión.")
-      }
-
       // Verificar contraseña
       const isValidPassword = await verifyPassword(password, userData.customPassword)
       
@@ -52,13 +45,13 @@ export function useCustomAuth() {
         throw new Error("Contraseña incorrecta")
       }
 
-      // Si llegamos aquí, la contraseña es correcta
-      // Necesitamos autenticar al usuario con Firebase Auth usando Google
-      // Pero primero verificamos que el usuario existe en Firebase Auth
-      const currentUser = auth.currentUser
+      // Contraseña correcta - autenticar con Google para mantener sesión Firebase
+      const provider = new GoogleAuthProvider()
+      const result = await signInWithPopup(auth, provider)
       
-      if (!currentUser || currentUser.uid !== userData.uid) {
-        throw new Error("Sesión no válida. Por favor, inicia sesión con Google primero.")
+      // Verificar que sea el mismo usuario
+      if (result.user.uid !== userData.uid) {
+        throw new Error("El usuario autenticado no coincide")
       }
 
       toast({
@@ -66,15 +59,17 @@ export function useCustomAuth() {
         description: "Has iniciado sesión correctamente",
       })
       
-      return { success: true, user: currentUser }
+      return { success: true, user: result.user }
       
     } catch (error: any) {
-      console.error("Error en login personalizado:", error)
+      console.error("Error en login:", error)
+      
       toast({
         title: "Error",
         description: error.message || "No se pudo iniciar sesión",
         variant: "destructive",
       })
+      
       return { success: false, error: error.message }
     } finally {
       setLoading(false)
