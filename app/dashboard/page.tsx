@@ -37,7 +37,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import type { UserProfile, Link } from "@/types"
-import { ExternalLink, GripVertical, Pencil, Plus, Trash2, Eye, Copy } from "lucide-react"
+import { ExternalLink, GripVertical, Pencil, Plus, Trash2, Eye, Copy, FolderOpen } from "lucide-react"
+import { ControlBioFileManager } from "@/components/ControlBioFileManager"
 
 export default function DashboardPage() {
   const { user, loading: authLoading, signOut } = useAuth()
@@ -390,9 +391,10 @@ export default function DashboardPage() {
 
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="profile">Perfil</TabsTrigger>
             <TabsTrigger value="links">Enlaces</TabsTrigger>
+            <TabsTrigger value="files">Archivos</TabsTrigger>
             <TabsTrigger value="theme">Personalización</TabsTrigger>
             <TabsTrigger value="security">Seguridad</TabsTrigger>
           </TabsList>
@@ -562,6 +564,10 @@ export default function DashboardPage() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="files" className="space-y-6">
+            <ControlBioFileManager />
           </TabsContent>
 
           <TabsContent value="theme" className="space-y-6">
