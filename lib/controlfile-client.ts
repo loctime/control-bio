@@ -12,29 +12,6 @@ async function getToken() {
 export async function getControlBioFolder(): Promise<string> {
   const token = await getToken();
   
-  try {
-    // Primero intentar con el endpoint root (método preferido)
-    const response = await fetch(
-      `${BACKEND_URL}/api/folders/root?name=ControlBio&pin=1&source=taskbar`,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      }
-    );
-    
-    if (response.ok) {
-      const result = await response.json();
-      console.log('✅ Carpeta ControlBio obtenida/creada via root endpoint:', result);
-      return result.folderId;
-    } else {
-      console.warn('❌ Endpoint root falló:', response.status, await response.text());
-    }
-  } catch (error) {
-    console.warn('Error con endpoint root, intentando método alternativo:', error);
-  }
-  
   // Verificar si la carpeta ya existe
   try {
     const existingFolders = await listFiles(null);
@@ -50,17 +27,8 @@ export async function getControlBioFolder(): Promise<string> {
     console.warn('Error verificando carpetas existentes:', error);
   }
   
-  // Si no existe, crear la carpeta con source: taskbar
-  const folderData = {
-    name: 'ControlBio',
-    parentId: null,
-    source: 'taskbar',  // ← Esto es clave para que aparezca en taskbar
-    icon: 'Briefcase',
-    color: 'text-purple-600',
-    pin: 1  // ← Pin para taskbar
-  };
-  
-  console.log('📤 Enviando datos de carpeta:', folderData);
+  // Crear la carpeta de forma simple
+  console.log('📁 Creando carpeta ControlBio...');
   
   const response = await fetch(`${BACKEND_URL}/api/folders/create`, {
     method: 'POST',
@@ -68,18 +36,22 @@ export async function getControlBioFolder(): Promise<string> {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(folderData),
+    body: JSON.stringify({
+      name: 'ControlBio',
+      parentId: null,
+      icon: 'Briefcase',
+      color: 'text-purple-600'
+    }),
   });
   
   if (!response.ok) {
     const error = await response.json();
-    console.error('❌ Error creando carpeta:', response.status, error);
     throw new Error(error.error || `Error HTTP ${response.status}`);
   }
   
   const result = await response.json();
-  console.log('✅ Carpeta ControlBio creada con source: taskbar');
-  console.log('📋 Respuesta del backend:', result);
+  console.log('✅ Carpeta ControlBio creada:', result.folderId);
+  
   return result.folderId;
 }
 
@@ -314,3 +286,4 @@ export async function ensureFolderExists(folderName: string, parentId: string): 
     throw error;
   }
 }
+
