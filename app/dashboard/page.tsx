@@ -26,7 +26,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { PasswordSetupModal } from "@/components/password-setup-modal"
 import {
   Dialog,
   DialogContent,
@@ -70,9 +69,6 @@ export default function DashboardPage() {
   const [linkDescription, setLinkDescription] = useState("")
   const [linkType, setLinkType] = useState<"external" | "internal">("external")
   const [linkActive, setLinkActive] = useState(true)
-
-  // Password setup modal state
-  const [passwordSetupOpen, setPasswordSetupOpen] = useState(false)
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -136,11 +132,6 @@ export default function DashboardPage() {
           setTextColor(defaultProfile.theme?.textColor || "#ffffff")
           setButtonColor(defaultProfile.theme?.buttonColor || "#ff6b35")
           setButtonTextColor(defaultProfile.theme?.buttonTextColor || "#ffffff")
-          
-          // Check if user needs to set up password for new profile
-          if (!defaultProfile.hasCustomPassword && !defaultProfile.autoPassword) {
-            setPasswordSetupOpen(true)
-          }
         }
 
         // Load links
@@ -684,59 +675,31 @@ export default function DashboardPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Seguridad</CardTitle>
-                <CardDescription>Gestiona tu contraseña y configuración de seguridad</CardDescription>
+                <CardDescription>Información de tu cuenta</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Estado de la contraseña</Label>
+                    <Label>Proveedor de autenticación</Label>
                     <p className="text-sm text-muted-foreground">
-                      {profile?.hasCustomPassword ? "Contraseña personalizada" : "Contraseña automática"}
+                      Google
                     </p>
                   </div>
                   
                   <div className="space-y-2">
-                    <Label>Cambiar contraseña</Label>
+                    <Label>Email de la cuenta</Label>
                     <p className="text-sm text-muted-foreground">
-                      Puedes cambiar tu contraseña o generar una nueva automática
+                      {user.email}
                     </p>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setPasswordSetupOpen(true)}
-                    >
-                      Cambiar contraseña
-                    </Button>
                   </div>
                   
-                  {profile?.autoPassword && (
-                    <div className="space-y-2">
-                      <Label>Contraseña automática actual</Label>
-                      <div className="flex items-center gap-2">
-                        <Input 
-                          type="password" 
-                          value={profile.autoPassword || ""} 
-                          readOnly 
-                          className="font-mono"
-                        />
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => {
-                            navigator.clipboard.writeText(profile.autoPassword || "")
-                            toast({
-                              title: "Copiado",
-                              description: "Contraseña copiada al portapapeles",
-                            })
-                          }}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Guarda esta contraseña en un lugar seguro. Puedes usarla para iniciar sesión con email/password.
-                      </p>
-                    </div>
-                  )}
+                  <div className="space-y-2">
+                    <Label>Seguridad de la cuenta</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Tu cuenta está protegida con autenticación de Google. Para cambiar tu contraseña, 
+                      hazlo desde tu cuenta de Google.
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -809,16 +772,6 @@ export default function DashboardPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <PasswordSetupModal
-        open={passwordSetupOpen}
-        onOpenChange={setPasswordSetupOpen}
-        onComplete={() => {
-          // Recargar perfil después de configurar contraseña
-          window.location.reload()
-        }}
-        user={user}
-      />
     </div>
   )
 }

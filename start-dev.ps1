@@ -13,3 +13,4 @@ Write-Host "🚀 Iniciando servidor en puerto 3001..." -ForegroundColor Green
 
 # Iniciar el servidor en puerto 3001
 npx next dev --port 3001
+

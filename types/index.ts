@@ -4,9 +4,6 @@ export interface UserProfile {
   displayName: string
   bio: string
   avatarUrl: string
-  autoPassword?: string
-  customPassword?: string
-  hasCustomPassword?: boolean
   theme?: {
     backgroundColor: string
     textColor: string
