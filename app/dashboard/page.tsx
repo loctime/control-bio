@@ -777,7 +777,7 @@ export default function DashboardPage() {
 
                   
                   {/* Enlaces */}
-                  <div className="space-y-4 max-w-sm mx-auto">
+                  <div className="space-y-4 max-w-md mx-auto">
                     {links.filter(link => link.isActive).length > 0 ? (
                       <div className="space-y-3">
                         {links
@@ -788,18 +788,18 @@ export default function DashboardPage() {
                               href={link.url}
                               target={link.type === "external" ? "_blank" : "_self"}
                               rel={link.type === "external" ? "noopener noreferrer" : ""}
-                              className="block w-full p-4 rounded-lg font-medium transition-opacity hover:opacity-90"
+                              className="block w-full px-4 py-2 rounded-lg font-medium transition-opacity hover:opacity-90"
                               style={{ 
                                 backgroundColor: profile?.theme?.buttonColor || "#ff6b35",
                                 color: profile?.theme?.buttonTextColor || "#ffffff"
                               }}
                             >
                               <div className="flex items-center justify-center gap-2">
-                                <span>{link.title}</span>
+                                <span className="text-lg font-semibold leading-tight">{link.title}</span>
                                 {link.type === "external" && <ExternalLink className="h-4 w-4" />}
                               </div>
                               {link.description && (
-                                <p className="text-xs opacity-80 mt-1">{link.description}</p>
+                                <p className="text-xs opacity-80 leading-tight text-center mt-1">{link.description}</p>
                               )}
                             </a>
                           ))}

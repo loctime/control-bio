@@ -124,15 +124,15 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
               {profile.displayName?.charAt(0)?.toUpperCase() || "U"}
             </AvatarFallback>
           </Avatar>
-          <div>
-            <h1 className="text-3xl font-bold mb-2">{profile.displayName}</h1>
-            <p className="opacity-80">@{profile.username}</p>
+          <div className="text-center">
+            <h1 className="text-5xl font-bold mb-2">{profile.displayName}</h1>
+            <p className="opacity-80 text-lg">@{profile.username}</p>
           </div>
           {profile.bio && <p className="text-lg opacity-90 max-w-md mx-auto whitespace-pre-wrap">{profile.bio}</p>}
         </div>
 
         {/* Links */}
-        <div className="space-y-4">
+        <div className="space-y-4 max-w-md mx-auto">
           {links.length === 0 ? (
             <div className="text-center py-12 opacity-60">
               <p>No hay enlaces disponibles</p>
@@ -144,19 +144,17 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                 href={link.url}
                 target={link.type === "external" ? "_blank" : "_self"}
                 rel={link.type === "external" ? "noopener noreferrer" : undefined}
-                className="block w-full p-4 rounded-lg transition-all hover:scale-105 hover:shadow-lg"
+                className="block w-full px-4 py-2 rounded-lg transition-all hover:scale-105 hover:shadow-lg"
                 style={{
                   backgroundColor: theme.buttonColor,
                   color: theme.buttonTextColor,
                 }}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 text-left">
-                    <h3 className="font-semibold text-lg">{link.title}</h3>
-                    {link.description && <p className="text-sm opacity-90 mt-1">{link.description}</p>}
-                  </div>
-                  {link.type === "external" && <ExternalLink className="h-5 w-5 ml-3 flex-shrink-0" />}
+                <div className="flex items-center justify-center gap-2">
+                  <h3 className="font-semibold text-lg leading-tight">{link.title}</h3>
+                  {link.type === "external" && <ExternalLink className="h-4 w-4 flex-shrink-0" />}
                 </div>
+                {link.description && <p className="text-xs opacity-90 leading-tight text-center mt-1">{link.description}</p>}
               </a>
             ))
           )}
