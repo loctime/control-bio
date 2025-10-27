@@ -345,6 +345,19 @@ export default function DashboardPage() {
     setLinkDialogOpen(true)
   }
 
+  const normalizeUrl = (url: string, type: "external" | "internal"): string => {
+    if (type === "internal") {
+      return url
+    }
+    
+    // Para enlaces externos, asegurar que tengan protocolo
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      return `https://${url}`
+    }
+    
+    return url
+  }
+
   const handleSaveLink = async () => {
     if (!user) {
       console.error("No user authenticated")
@@ -360,12 +373,15 @@ export default function DashboardPage() {
       console.log("Saving link for user:", user.uid)
       console.log("User auth token:", await user.getIdToken())
       
+      // Normalizar la URL antes de guardar
+      const normalizedUrl = normalizeUrl(linkUrl, linkType)
+      
       if (editingLink) {
         // Update existing link
         const linkRef = doc(db, "apps/controlbio/links", editingLink.id)
         await updateDoc(linkRef, {
           title: linkTitle,
-          url: linkUrl,
+          url: normalizedUrl,
           description: linkDescription,
           type: linkType,
           isActive: linkActive,
@@ -378,7 +394,7 @@ export default function DashboardPage() {
               ? {
                   ...l,
                   title: linkTitle,
-                  url: linkUrl,
+                  url: normalizedUrl,
                   description: linkDescription,
                   type: linkType,
                   isActive: linkActive,
@@ -397,7 +413,7 @@ export default function DashboardPage() {
         const newLink = {
           userId: user.uid,
           title: linkTitle,
-          url: linkUrl,
+          url: normalizedUrl,
           description: linkDescription,
           type: linkType,
           isActive: linkActive,
