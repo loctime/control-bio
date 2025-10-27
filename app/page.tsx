@@ -93,33 +93,11 @@ export default function HomePage() {
             <p className="text-xl text-muted-foreground text-balance">
               Tu página de enlaces personalizada. Comparte todo lo que haces en un solo lugar.
             </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="p-6 rounded-lg bg-card border border-border">
-              <h3 className="text-lg font-semibold mb-2">Personalizable</h3>
-              <p className="text-sm text-muted-foreground">
-                Personaliza colores, temas y estilos para que coincida con tu marca
-              </p>
-            </div>
-            <div className="p-6 rounded-lg bg-card border border-border">
-              <h3 className="text-lg font-semibold mb-2">Fácil de usar</h3>
-              <p className="text-sm text-muted-foreground">Gestiona tus enlaces con una interfaz intuitiva y sencilla</p>
-            </div>
-            <div className="p-6 rounded-lg bg-card border border-border">
-              <h3 className="text-lg font-semibold mb-2">Rápido</h3>
-              <p className="text-sm text-muted-foreground">Páginas optimizadas que cargan instantáneamente</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="max-w-md mx-auto">
+            <div className="max-w-md mx-auto">
           <Card>
             <CardHeader>
               <CardTitle>Iniciar sesión</CardTitle>
-              <CardDescription>
-                Accede con tu cuenta de Google
-              </CardDescription>
+              
             </CardHeader>
             <CardContent className="space-y-4">
               <Button 
@@ -155,6 +133,27 @@ export default function HomePage() {
             </CardContent>
           </Card>
         </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="p-6 rounded-lg bg-card border border-border">
+              <h3 className="text-lg font-semibold mb-2">Personalizable</h3>
+              <p className="text-sm text-muted-foreground">
+                Personaliza colores, temas y estilos para que coincida con tu marca
+              </p>
+            </div>
+            <div className="p-6 rounded-lg bg-card border border-border">
+              <h3 className="text-lg font-semibold mb-2">Fácil de usar</h3>
+              <p className="text-sm text-muted-foreground">Gestiona tus enlaces con una interfaz intuitiva y sencilla</p>
+            </div>
+            <div className="p-6 rounded-lg bg-card border border-border">
+              <h3 className="text-lg font-semibold mb-2">Rápido</h3>
+              <p className="text-sm text-muted-foreground">Páginas optimizadas que cargan instantáneamente</p>
+            </div>
+          </div>
+        </div>
+
+       
       </main>
     </div>
   )
