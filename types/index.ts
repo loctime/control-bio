@@ -1,7 +1,8 @@
 export interface UserProfile {
-  id: string
+  uid: string
   username: string
   displayName: string
+  email: string
   bio: string
   avatarUrl: string
   theme?: {

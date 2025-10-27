@@ -108,10 +108,12 @@ export default function DashboardPage() {
           setButtonTextColor(theme.buttonTextColor || defaultTheme.buttonTextColor)
         } else {
           // Create default profile
+          const username = user.email?.split("@")[0] || user.uid.slice(0, 8)
           const defaultProfile: UserProfile = {
-            id: user.uid,
-            username: user.email?.split("@")[0] || "",
-            displayName: user.displayName || "",
+            uid: user.uid,
+            username: username,
+            displayName: user.displayName || "Usuario",
+            email: user.email || "",
             bio: "",
             avatarUrl: user.photoURL || "",
             theme: {
@@ -123,6 +125,8 @@ export default function DashboardPage() {
             createdAt: new Date(),
             updatedAt: new Date(),
           }
+          
+          console.log("Creando perfil por defecto:", defaultProfile)
           await setDoc(profileRef, defaultProfile)
           setProfile(defaultProfile)
           setDisplayName(defaultProfile.displayName)
@@ -162,6 +166,7 @@ export default function DashboardPage() {
     try {
       const updatedProfile: UserProfile = {
         ...profile,
+        uid: user.uid,
         displayName,
         username,
         bio,

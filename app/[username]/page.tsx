@@ -14,29 +14,50 @@ interface ProfilePageProps {
 
 async function getProfileByUsername(username: string) {
   try {
+    console.log("Buscando perfil para username:", username)
+    
     const profilesQuery = query(collection(db, "apps/controlbio/users"), where("username", "==", username))
     const profilesSnap = await getDocs(profilesQuery)
 
+    console.log("Resultados de la consulta de perfiles:", profilesSnap.docs.length)
+
     if (profilesSnap.empty) {
+      console.log("No se encontró perfil para username:", username)
       return null
     }
 
     const profileData = profilesSnap.docs[0].data() as UserProfile
     const userId = profilesSnap.docs[0].id
+    console.log("Perfil encontrado:", profileData.displayName, "ID:", userId)
 
     // Get user's links
+    console.log("Buscando enlaces para userId:", userId)
     const linksQuery = query(
       collection(db, "apps/controlbio/links"),
       where("userId", "==", userId),
-      where("isActive", "==", true),
-      orderBy("order", "asc"),
+      where("isActive", "==", true)
     )
     const linksSnap = await getDocs(linksQuery)
-    const links = linksSnap.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as Link)
+    console.log("Documentos de enlaces encontrados:", linksSnap.docs.length)
+    
+    const links = linksSnap.docs.map((doc) => {
+      const data = doc.data()
+      console.log("Procesando enlace:", data.title, "ID:", doc.id)
+      return { ...data, id: doc.id } as Link
+    })
+    
+    // Ordenar manualmente por el campo order
+    links.sort((a, b) => (a.order || 0) - (b.order || 0))
+    
+    console.log("Enlaces procesados y ordenados:", links.length)
 
     return { profile: profileData, links }
   } catch (error) {
     console.error("Error fetching profile:", error)
+    console.error("Detalles del error:", {
+      message: error instanceof Error ? error.message : 'Error desconocido',
+      stack: error instanceof Error ? error.stack : undefined
+    })
     return null
   }
 }

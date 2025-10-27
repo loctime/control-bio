@@ -24,8 +24,10 @@ service cloud.firestore {
     
     // Colección de enlaces para ControlBio
     match /apps/controlbio/links/{linkId} {
-      // Lectura: Solo el dueño puede leer sus enlaces
-      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Lectura: Cualquiera puede leer enlaces activos (necesario para páginas públicas)
+      // Solo el dueño puede leer enlaces inactivos
+      allow read: if resource.data.isActive == true || 
+                     (request.auth != null && request.auth.uid == resource.data.userId);
       
       // Escritura: Solo el dueño puede crear/editar/eliminar sus enlaces
       allow write: if request.auth != null && request.auth.uid == resource.data.userId;
