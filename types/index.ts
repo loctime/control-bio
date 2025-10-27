@@ -5,6 +5,14 @@ export interface UserProfile {
   email: string
   bio: string
   avatarUrl: string
+  avatarSettings?: {
+    size: number
+    position: {
+      x: number
+      y: number
+    }
+    scale: number
+  }
   theme?: {
     backgroundColor: string
     textColor: string

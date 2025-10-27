@@ -86,6 +86,12 @@ export default function DashboardPage() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string>("")
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  
+  // Avatar editor modal state
+  const [avatarEditorOpen, setAvatarEditorOpen] = useState(false)
+  const [avatarSize, setAvatarSize] = useState(96) // tamaño en px
+  const [avatarPosition, setAvatarPosition] = useState({ x: 50, y: 50 }) // porcentaje
+  const [avatarScale, setAvatarScale] = useState(100) // porcentaje de zoom
   const [editingAvatar, setEditingAvatar] = useState(false)
 
   useEffect(() => {
@@ -208,13 +214,14 @@ export default function DashboardPage() {
       // 4. Obtener URL de descarga
       const downloadUrl = await getDownloadUrl(fileId)
       
-      // 5. Actualizar estado local
+      // 5. Actualizar estado local y abrir editor
       setAvatarPreview(downloadUrl)
       setAvatarUrl(downloadUrl)
+      setAvatarEditorOpen(true)
       
       toast({
-        title: "Avatar actualizado",
-        description: "La imagen se ha subido correctamente a ControlFile",
+        title: "Imagen subida",
+        description: "Ajusta el tamaño y posición de tu avatar",
       })
     } catch (error: any) {
       console.error("Error uploading avatar:", error)
@@ -225,6 +232,51 @@ export default function DashboardPage() {
       })
     } finally {
       setUploadingAvatar(false)
+    }
+  }
+
+  const handleAvatarFromUrl = () => {
+    if (avatarUrl) {
+      setAvatarPreview(avatarUrl)
+      setAvatarEditorOpen(true)
+    }
+  }
+
+  const handleSaveAvatarEditor = async () => {
+    if (!user || !profile) return
+
+    setSaving(true)
+    try {
+      const updatedProfile: UserProfile = {
+        ...profile,
+        uid: user.uid,
+        avatarUrl: avatarPreview,
+        avatarSettings: {
+          size: avatarSize,
+          position: avatarPosition,
+          scale: avatarScale,
+        },
+        updatedAt: new Date(),
+      }
+
+      const profileRef = doc(db, "apps/controlbio/users", user.uid)
+      await setDoc(profileRef, updatedProfile)
+      setProfile(updatedProfile)
+      setAvatarEditorOpen(false)
+
+      toast({
+        title: "Avatar actualizado",
+        description: "Tu avatar se ha guardado correctamente",
+      })
+    } catch (error: any) {
+      console.error("Error saving avatar:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo guardar el avatar",
+        variant: "destructive",
+      })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -531,15 +583,34 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-4 justify-center">
                     {/* Avatar */}
                     <div className="relative">
-                      <Avatar className="h-24 w-24">
-                        <AvatarImage 
-                          src={avatarPreview || profile?.avatarUrl} 
-                          alt={profile?.displayName} 
+                      <div 
+                        className="rounded-full overflow-hidden"
+                        style={{ 
+                          width: `${profile?.avatarSettings?.size || 96}px`,
+                          height: `${profile?.avatarSettings?.size || 96}px`
+                        }}
+                      >
+                        <img
+                          src={avatarPreview || profile?.avatarUrl}
+                          alt={profile?.displayName}
+                          className="w-full h-full object-cover"
+                          style={{
+                            objectPosition: `${profile?.avatarSettings?.position?.x || 50}% ${profile?.avatarSettings?.position?.y || 50}%`,
+                            transform: `scale(${(profile?.avatarSettings?.scale || 100) / 100})`
+                          }}
                         />
-                        <AvatarFallback className="text-2xl">
+                      </div>
+                      {!profile?.avatarUrl && !avatarPreview && (
+                        <div 
+                          className="bg-gray-600 rounded-full flex items-center justify-center text-white text-2xl font-bold"
+                          style={{ 
+                            width: `${profile?.avatarSettings?.size || 96}px`,
+                            height: `${profile?.avatarSettings?.size || 96}px`
+                          }}
+                        >
                           {profile?.displayName?.charAt(0)?.toUpperCase() || "U"}
-                        </AvatarFallback>
-                      </Avatar>
+                        </div>
+                      )}
                     </div>
                     
                     {/* Controles de edición */}
@@ -573,35 +644,35 @@ export default function DashboardPage() {
                       </div>
                       
                       {/* Campo de URL */}
-                      <div>
+                      <div className="flex gap-2">
                         <Input
                           type="url"
                           placeholder="O pega una URL de imagen"
                           value={avatarUrl}
                           onChange={(e) => setAvatarUrl(e.target.value)}
-                          className="bg-transparent border-2 border-white/20 text-white placeholder-white/60 focus:border-white/40 focus:ring-0 w-64"
+                          className="bg-transparent border-2 border-white/20 text-white placeholder-white/60 focus:border-white/40 focus:ring-0 w-48"
                         />
+                        <Button
+                          onClick={handleAvatarFromUrl}
+                          disabled={!avatarUrl}
+                          size="sm"
+                          variant="outline"
+                        >
+                          Cargar
+                        </Button>
                       </div>
                       
-                      {/* Botones de acción */}
-                      <div className="flex gap-2">
+                      {/* Botón de editar */}
+                      {(avatarPreview || profile?.avatarUrl) && (
                         <Button
-                          onClick={() => handleSaveField('avatar')}
-                          disabled={saving}
+                          onClick={() => setAvatarEditorOpen(true)}
                           size="sm"
-                          className="bg-green-500 hover:bg-green-600"
+                          className="bg-purple-500 hover:bg-purple-600"
                         >
-                          {saving ? "Guardando..." : "Guardar"}
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Editar avatar
                         </Button>
-                        <Button
-                          onClick={() => handleCancelField('avatar')}
-                          disabled={saving}
-                          variant="outline"
-                          size="sm"
-                        >
-                          Cancelar
-                        </Button>
-                      </div>
+                      )}
                     </div>
                   </div>
                   
@@ -776,24 +847,7 @@ export default function DashboardPage() {
                     </div>
                   )}
 
-                  {/* Información adicional */}
-                  <div className="mt-8 p-4 bg-black/20 rounded-lg max-w-md mx-auto">
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="opacity-80">Email:</span>
-                        <span className="opacity-60">{user.email}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="opacity-80">URL del perfil:</span>
-                        <div className="flex items-center gap-2">
-                          <span className="opacity-60">@{profile?.username}</span>
-                          <Button variant="ghost" size="sm" onClick={copyProfileUrl} className="h-6 w-6 p-0">
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  
                 </div>
               </CardContent>
             </Card>
@@ -1065,6 +1119,103 @@ export default function DashboardPage() {
             </Button>
             <Button onClick={handleSaveLink} disabled={!linkTitle || !linkUrl}>
               {editingLink ? "Actualizar" : "Crear"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de edición de avatar */}
+      <Dialog open={avatarEditorOpen} onOpenChange={setAvatarEditorOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar Avatar</DialogTitle>
+            <DialogDescription>
+              Ajusta el tamaño, posición y zoom de tu avatar
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            {/* Vista previa del avatar */}
+            <div className="flex justify-center">
+              <div 
+                className="rounded-full overflow-hidden border-4 border-gray-300"
+                style={{ 
+                  width: `${avatarSize}px`,
+                  height: `${avatarSize}px`
+                }}
+              >
+                <img
+                  src={avatarPreview || profile?.avatarUrl}
+                  alt="Avatar preview"
+                  className="w-full h-full object-cover"
+                  style={{
+                    objectPosition: `${avatarPosition.x}% ${avatarPosition.y}%`,
+                    transform: `scale(${avatarScale / 100})`
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Controles */}
+            <div className="space-y-4">
+              {/* Tamaño del círculo */}
+              <div className="space-y-2">
+                <Label>Tamaño del círculo: {avatarSize}px</Label>
+                <input
+                  type="range"
+                  min="64"
+                  max="200"
+                  value={avatarSize}
+                  onChange={(e) => setAvatarSize(Number(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Posición X */}
+              <div className="space-y-2">
+                <Label>Posición horizontal: {avatarPosition.x}%</Label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={avatarPosition.x}
+                  onChange={(e) => setAvatarPosition(prev => ({ ...prev, x: Number(e.target.value) }))}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Posición Y */}
+              <div className="space-y-2">
+                <Label>Posición vertical: {avatarPosition.y}%</Label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={avatarPosition.y}
+                  onChange={(e) => setAvatarPosition(prev => ({ ...prev, y: Number(e.target.value) }))}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Zoom */}
+              <div className="space-y-2">
+                <Label>Zoom: {avatarScale}%</Label>
+                <input
+                  type="range"
+                  min="50"
+                  max="200"
+                  value={avatarScale}
+                  onChange={(e) => setAvatarScale(Number(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAvatarEditorOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveAvatarEditor} disabled={saving}>
+              {saving ? "Guardando..." : "Guardar avatar"}
             </Button>
           </DialogFooter>
         </DialogContent>
