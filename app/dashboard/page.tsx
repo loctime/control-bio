@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import type { UserProfile, Link } from "@/types"
+import type { UserProfile, Link, Section } from "@/types"
 import { ExternalLink, GripVertical, Pencil, Plus, Trash2, Eye, Copy, FolderOpen, Upload, X } from "lucide-react"
 import { ControlBioFileManager } from "@/components/ControlBioFileManager"
 import { 
@@ -54,6 +54,7 @@ export default function DashboardPage() {
   const { toast } = useToast()
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [links, setLinks] = useState<Link[]>([])
+  const [sections, setSections] = useState<Section[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -83,6 +84,14 @@ export default function DashboardPage() {
   const [linkDescription, setLinkDescription] = useState("")
   const [linkType, setLinkType] = useState<"external" | "internal">("external")
   const [linkActive, setLinkActive] = useState(true)
+  const [linkSectionId, setLinkSectionId] = useState<string>("")
+
+  // Section dialog state
+  const [sectionDialogOpen, setSectionDialogOpen] = useState(false)
+  const [editingSection, setEditingSection] = useState<Section | null>(null)
+  const [sectionTitle, setSectionTitle] = useState("")
+  const [sectionDescription, setSectionDescription] = useState("")
+  const [sectionActive, setSectionActive] = useState(true)
 
   // Avatar upload state
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
@@ -168,6 +177,14 @@ export default function DashboardPage() {
         const linksData = linksSnap.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as Link)
         setLinks(linksData)
         console.log("Loaded links:", linksData)
+
+        // Load sections
+        console.log("Loading sections for user:", user.uid)
+        const sectionsQuery = query(collection(db, "apps/controlbio/sections"), where("userId", "==", user.uid), orderBy("order", "asc"))
+        const sectionsSnap = await getDocs(sectionsQuery)
+        const sectionsData = sectionsSnap.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as Section)
+        setSections(sectionsData)
+        console.log("Loaded sections:", sectionsData)
       } catch (error) {
         console.error("Error loading profile:", error)
         const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
@@ -336,6 +353,7 @@ export default function DashboardPage() {
       setLinkDescription(link.description || "")
       setLinkType(link.type)
       setLinkActive(link.isActive)
+      setLinkSectionId(link.sectionId || "")
     } else {
       setEditingLink(null)
       setLinkTitle("")
@@ -343,8 +361,24 @@ export default function DashboardPage() {
       setLinkDescription("")
       setLinkType("external")
       setLinkActive(true)
+      setLinkSectionId("")
     }
     setLinkDialogOpen(true)
+  }
+
+  const openSectionDialog = (section?: Section) => {
+    if (section) {
+      setEditingSection(section)
+      setSectionTitle(section.title)
+      setSectionDescription(section.description || "")
+      setSectionActive(section.isActive)
+    } else {
+      setEditingSection(null)
+      setSectionTitle("")
+      setSectionDescription("")
+      setSectionActive(true)
+    }
+    setSectionDialogOpen(true)
   }
 
   const normalizeUrl = (url: string, type: "external" | "internal"): string => {
@@ -387,6 +421,7 @@ export default function DashboardPage() {
           description: linkDescription,
           type: linkType,
           isActive: linkActive,
+          sectionId: linkSectionId || undefined,
           updatedAt: new Date(),
         })
 
@@ -400,7 +435,8 @@ export default function DashboardPage() {
                   description: linkDescription,
                   type: linkType,
                   isActive: linkActive,
-                  updatedAt: new Date(),
+                  sectionId: linkSectionId || undefined,
+                  updatedAt: new Date().toISOString(),
                 }
               : l,
           ),
@@ -419,9 +455,10 @@ export default function DashboardPage() {
           description: linkDescription,
           type: linkType,
           isActive: linkActive,
+          sectionId: linkSectionId || undefined,
           order: links.length,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         }
 
         console.log("Creating new link:", newLink)
@@ -472,6 +509,121 @@ export default function DashboardPage() {
     }
   }
 
+  const handleSaveSection = async () => {
+    if (!user) {
+      console.error("No user authenticated")
+      toast({
+        title: "Error",
+        description: "No hay usuario autenticado",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      if (editingSection) {
+        // Update existing section
+        const sectionRef = doc(db, "apps/controlbio/sections", editingSection.id)
+        await updateDoc(sectionRef, {
+          title: sectionTitle,
+          description: sectionDescription,
+          isActive: sectionActive,
+          updatedAt: new Date(),
+        })
+
+        setSections(
+          sections.map((s) =>
+            s.id === editingSection.id
+              ? {
+                  ...s,
+                  title: sectionTitle,
+                  description: sectionDescription,
+                  isActive: sectionActive,
+                  updatedAt: new Date().toISOString(),
+                }
+              : s,
+          ),
+        )
+
+        toast({
+          title: "Sección actualizada",
+          description: "La sección se ha actualizado correctamente",
+        })
+      } else {
+        // Create new section
+        const newSection = {
+          userId: user.uid,
+          title: sectionTitle,
+          description: sectionDescription,
+          isActive: sectionActive,
+          order: sections.length,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }
+
+        console.log("Creating new section:", newSection)
+        const docRef = await addDoc(collection(db, "apps/controlbio/sections"), newSection)
+        setSections([...sections, { ...newSection, id: docRef.id } as Section])
+
+        toast({
+          title: "Sección creada",
+          description: "La sección se ha creado correctamente",
+        })
+      }
+
+      setSectionDialogOpen(false)
+    } catch (error) {
+      console.error("Error saving section:", error)
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
+      toast({
+        title: "Error",
+        description: `No se pudo guardar la sección: ${errorMessage}`,
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleDeleteSection = async (sectionId: string) => {
+    try {
+      // First, remove sectionId from all links in this section
+      const linksInSection = links.filter(link => link.sectionId === sectionId)
+      if (linksInSection.length > 0) {
+        const batch = writeBatch(db)
+        linksInSection.forEach(link => {
+          const linkRef = doc(db, "apps/controlbio/links", link.id)
+          batch.update(linkRef, { 
+            sectionId: undefined,
+            updatedAt: new Date()
+          })
+        })
+        await batch.commit()
+        
+        // Update local state
+        setLinks(links.map(link => 
+          link.sectionId === sectionId 
+            ? { ...link, sectionId: undefined, updatedAt: new Date().toISOString() }
+            : link
+        ))
+      }
+
+      // Then delete the section
+      await deleteDoc(doc(db, "apps/controlbio/sections", sectionId))
+      setSections(sections.filter((s) => s.id !== sectionId))
+
+      toast({
+        title: "Sección eliminada",
+        description: "La sección se ha eliminado correctamente",
+      })
+    } catch (error: any) {
+      console.error("Error deleting section:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar la sección",
+        variant: "destructive",
+      })
+    }
+  }
+
   const handleReorderLinks = async (reorderedLinks: Link[]) => {
     if (!user) return
 
@@ -501,6 +653,56 @@ export default function DashboardPage() {
       toast({
         title: "Error",
         description: "No se pudo actualizar el orden de los enlaces",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleMoveLinkToSection = async (linkId: string, sectionId: string | undefined) => {
+    if (!user) return
+
+    try {
+      console.log("Moving link:", linkId, "to section:", sectionId)
+      console.log("Available links:", links.map(l => ({ id: l.id, title: l.title })))
+      
+      // Obtener el enlace actual
+      const currentLink = links.find(link => link.id === linkId)
+      if (!currentLink) {
+        console.error("Link not found in state:", linkId)
+        console.error("Available link IDs:", links.map(l => l.id))
+        throw new Error(`Enlace no encontrado: ${linkId}`)
+      }
+
+      console.log("Found link:", currentLink.title)
+
+      // Crear el enlace actualizado con la nueva sección
+      const updatedLink = {
+        ...currentLink,
+        sectionId: sectionId || undefined,
+        updatedAt: new Date().toISOString()
+      }
+
+      // Usar setDoc en lugar de updateDoc para evitar problemas de permisos
+      const linkRef = doc(db, "apps/controlbio/links", linkId)
+      await setDoc(linkRef, updatedLink)
+
+      // Actualizar el estado local
+      setLinks(links.map(link => 
+        link.id === linkId 
+          ? updatedLink
+          : link
+      ))
+
+      const sectionName = sectionId ? sections.find(s => s.id === sectionId)?.title || 'sección' : 'sin sección'
+      toast({
+        title: "Enlace movido",
+        description: `El enlace se ha movido a ${sectionName}`,
+      })
+    } catch (error: any) {
+      console.error("Error moving link to section:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo mover el enlace",
         variant: "destructive",
       })
     }
@@ -793,78 +995,289 @@ export default function DashboardPage() {
                   </div>
 
                   
-                  {/* Enlaces */}
-                  <div className="space-y-4 max-w-md mx-auto">
-                    {links.filter(link => link.isActive).length > 0 ? (
-                      <div className="space-y-3">
-                        {links
-                          .filter(link => link.isActive)
-                          .map((link, index) => {
-                            const isDragging = dragState.draggedItem?.id === link.id
-                            const isDragOver = dragState.draggedOverItem?.id === link.id
+                  {/* Enlaces organizados por secciones */}
+                  <div className="space-y-6 max-w-md mx-auto">
+                    {(() => {
+                      const activeSections = sections.filter(section => section.isActive).sort((a, b) => a.order - b.order)
+                      const activeLinks = links.filter(link => link.isActive)
+                      const linksWithoutSection = activeLinks.filter(link => !link.sectionId)
+                      
+                      return (
+                        <>
+                          {/* Enlaces sin sección */}
+                          <div 
+                            className="space-y-3"
+                            onDragOver={(e) => {
+                              e.preventDefault()
+                              e.dataTransfer.dropEffect = "move"
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault()
+                              const linkData = e.dataTransfer.getData("text/plain")
+                              console.log("Drop event (no section) - captured linkData:", linkData)
+                              
+                              let linkId = linkData
+                              try {
+                                // Si es un objeto JSON, extraer el ID
+                                const parsed = JSON.parse(linkData)
+                                linkId = parsed.id || linkData
+                              } catch {
+                                // Si no es JSON, usar el valor directamente
+                                linkId = linkData
+                              }
+                              
+                              console.log("Extracted linkId:", linkId)
+                              if (linkId) {
+                                handleMoveLinkToSection(linkId, undefined)
+                              }
+                            }}
+                          >
+                            {linksWithoutSection.length > 0 ? (
+                              <div className="space-y-3">
+                                {linksWithoutSection.map((link, index) => {
+                                const isDragging = dragState.draggedItem?.id === link.id
+                                const isDragOver = dragState.draggedOverItem?.id === link.id
+                                
+                                return (
+                                  <div
+                                    key={link.id}
+                                    draggable
+                                    onDragStart={(e) => {
+                                      e.dataTransfer.setData("text/plain", link.id)
+                                      handleDragStart(e, link, index)
+                                    }}
+                                    onDragOver={(e) => handleDragOver(e, link, index)}
+                                    onDragLeave={handleDragLeave}
+                                    onDrop={handleDrop}
+                                    onDragEnd={handleDragEnd}
+                                    className={`relative transition-all duration-200 cursor-move ${
+                                      isDragging ? 'opacity-50 scale-95' : ''
+                                    } ${
+                                      isDragOver ? 'ring-2 ring-white/50 ring-offset-2 ring-offset-transparent' : ''
+                                    }`}
+                                  >
+                                    <div className="relative group">
+                                      <a
+                                        href={link.url}
+                                        target={link.type === "external" ? "_blank" : "_self"}
+                                        rel={link.type === "external" ? "noopener noreferrer" : ""}
+                                        className="block w-full px-4 py-2 rounded-lg font-medium transition-opacity hover:opacity-90"
+                                        style={{ 
+                                          backgroundColor: profile?.theme?.buttonColor || "#ff6b35",
+                                          color: profile?.theme?.buttonTextColor || "#ffffff"
+                                        }}
+                                        onClick={(e) => {
+                                          if (isDragging) {
+                                            e.preventDefault()
+                                          }
+                                        }}
+                                      >
+                                        <div className="flex items-center justify-center gap-2">
+                                          <GripVertical className="h-4 w-4 opacity-60 group-hover:opacity-100 transition-opacity" />
+                                          <span className="text-lg font-semibold leading-tight">{link.title}</span>
+                                          {link.type === "external" && <ExternalLink className="h-4 w-4" />}
+                                        </div>
+                                        {link.description && (
+                                          <p className="text-xs opacity-80 leading-tight text-center mt-1">{link.description}</p>
+                                        )}
+                                      </a>
+                                      
+                                      {/* Botón de eliminar enlace */}
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault()
+                                          e.stopPropagation()
+                                          handleDeleteLink(link.id)
+                                        }}
+                                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                                        title="Eliminar enlace"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                              </div>
+                            ) : (
+                              <div className="text-center py-2">
+                                <div className="text-xs text-white/40 p-2 rounded-lg border-2 border-dashed border-white/20">
+                                  Arrastra enlaces aquí para quitarles la sección
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Secciones con sus enlaces */}
+                          {activeSections.map((section) => {
+                            const sectionLinks = activeLinks.filter(link => link.sectionId === section.id)
                             
                             return (
                               <div
-                                key={link.id}
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, link, index)}
-                                onDragOver={(e) => handleDragOver(e, link, index)}
-                                onDragLeave={handleDragLeave}
-                                onDrop={handleDrop}
-                                onDragEnd={handleDragEnd}
-                                className={`relative transition-all duration-200 cursor-move ${
-                                  isDragging ? 'opacity-50 scale-95' : ''
-                                } ${
-                                  isDragOver ? 'ring-2 ring-white/50 ring-offset-2 ring-offset-transparent' : ''
-                                }`}
+                                key={section.id}
+                                className="space-y-3"
+                                onDragOver={(e) => {
+                                  e.preventDefault()
+                                  e.dataTransfer.dropEffect = "move"
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault()
+                                  const linkData = e.dataTransfer.getData("text/plain")
+                                  console.log("Drop event - captured linkData:", linkData)
+
+                                  let linkId = linkData
+                                  try {
+                                    // Si es un objeto JSON, extraer el ID
+                                    const parsed = JSON.parse(linkData)
+                                    linkId = parsed.id || linkData
+                                  } catch {
+                                    // Si no es JSON, usar el valor directamente
+                                    linkId = linkData
+                                  }
+
+                                  console.log("Extracted linkId:", linkId)
+                                  if (linkId) {
+                                    handleMoveLinkToSection(linkId, section.id)
+                                  }
+                                }}
                               >
-                                <a
-                                  href={link.url}
-                                  target={link.type === "external" ? "_blank" : "_self"}
-                                  rel={link.type === "external" ? "noopener noreferrer" : ""}
-                                  className="block w-full px-4 py-2 rounded-lg font-medium transition-opacity hover:opacity-90 relative group"
-                                  style={{ 
-                                    backgroundColor: profile?.theme?.buttonColor || "#ff6b35",
-                                    color: profile?.theme?.buttonTextColor || "#ffffff"
-                                  }}
-                                  onClick={(e) => {
-                                    // Permitir que el drag funcione sin activar el enlace
-                                    if (isDragging) {
-                                      e.preventDefault()
-                                    }
-                                  }}
-                                >
-                                  <div className="flex items-center justify-center gap-2">
-                                    <GripVertical className="h-4 w-4 opacity-60 group-hover:opacity-100 transition-opacity" />
-                                    <span className="text-lg font-semibold leading-tight">{link.title}</span>
-                                    {link.type === "external" && <ExternalLink className="h-4 w-4" />}
+                                {/* Contenedor de la sección con recuadro */}
+                                <div className="bg-white/5 border border-white/20 rounded-lg p-4 space-y-3">
+                                  {/* Título de la sección con zona de drop */}
+                                  <div className="relative group">
+                                    <div 
+                                      className="text-sm font-medium text-white/90 text-center p-3 rounded-lg border-2 border-dashed border-white/30 hover:border-white/50 transition-colors bg-white/5"
+                                      title="Arrastra enlaces aquí para moverlos a esta sección"
+                                    >
+                                      <div className="flex items-center justify-center gap-2">
+                                        <FolderOpen className="h-4 w-4" />
+                                        <span>{section.title}</span>
+                                        <span className="text-xs text-white/60">({sectionLinks.length})</span>
+                                      </div>
+                                      {sectionLinks.length === 0 && (
+                                        <div className="text-xs text-white/40 mt-2">
+                                          Arrastra enlaces aquí
+                                        </div>
+                                      )}
+                                    </div>
+                                    
+                                    {/* Botón de eliminar sección */}
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        handleDeleteSection(section.id)
+                                      }}
+                                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                                      title="Eliminar sección"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
                                   </div>
-                                  {link.description && (
-                                    <p className="text-xs opacity-80 leading-tight text-center mt-1">{link.description}</p>
-                                  )}
-                                </a>
+                                
+                                {/* Enlaces de la sección */}
+                                {sectionLinks.map((link, index) => {
+                                  const isDragging = dragState.draggedItem?.id === link.id
+                                  const isDragOver = dragState.draggedOverItem?.id === link.id
+                                  
+                                  return (
+                                    <div
+                                      key={link.id}
+                                      draggable
+                                      onDragStart={(e) => {
+                                        e.dataTransfer.setData("text/plain", link.id)
+                                        handleDragStart(e, link, index)
+                                      }}
+                                      onDragOver={(e) => handleDragOver(e, link, index)}
+                                      onDragLeave={handleDragLeave}
+                                      onDrop={handleDrop}
+                                      onDragEnd={handleDragEnd}
+                                      className={`relative transition-all duration-200 cursor-move ${
+                                        isDragging ? 'opacity-50 scale-95' : ''
+                                      } ${
+                                        isDragOver ? 'ring-2 ring-white/50 ring-offset-2 ring-offset-transparent' : ''
+                                      }`}
+                                    >
+                                      <div className="relative group">
+                                        <a
+                                          href={link.url}
+                                          target={link.type === "external" ? "_blank" : "_self"}
+                                          rel={link.type === "external" ? "noopener noreferrer" : ""}
+                                          className="block w-full px-4 py-2 rounded-lg font-medium transition-opacity hover:opacity-90"
+                                          style={{ 
+                                            backgroundColor: profile?.theme?.buttonColor || "#ff6b35",
+                                            color: profile?.theme?.buttonTextColor || "#ffffff"
+                                          }}
+                                          onClick={(e) => {
+                                            if (isDragging) {
+                                              e.preventDefault()
+                                            }
+                                          }}
+                                        >
+                                          <div className="flex items-center justify-center gap-2">
+                                            <GripVertical className="h-4 w-4 opacity-60 group-hover:opacity-100 transition-opacity" />
+                                            <span className="text-lg font-semibold leading-tight">{link.title}</span>
+                                            {link.type === "external" && <ExternalLink className="h-4 w-4" />}
+                                          </div>
+                                          {link.description && (
+                                            <p className="text-xs opacity-80 leading-tight text-center mt-1">{link.description}</p>
+                                          )}
+                                        </a>
+                                        
+                                        {/* Botón de eliminar enlace */}
+                                        <button
+                                          onClick={(e) => {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                            handleDeleteLink(link.id)
+                                          }}
+                                          className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                                          title="Eliminar enlace"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                                </div>
                               </div>
                             )
                           })}
-                      </div>
-                    ) : (
-                      <div className="text-center py-4">
-                        <p className="text-white/60 text-sm mb-3">No tienes enlaces todavía</p>
-                      </div>
-                    )}
-                    
-                    {/* Botón para agregar enlace */}
-                    <Button
-                      onClick={() => openLinkDialog()}
-                      className="w-full"
-                      style={{ 
-                        backgroundColor: profile?.theme?.buttonColor || "#ff6b35",
-                        color: profile?.theme?.buttonTextColor || "#ffffff"
-                      }}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Agregar enlace
-                    </Button>
+
+                          {/* Mensaje si no hay enlaces */}
+                          {activeLinks.length === 0 && (
+                            <div className="text-center py-4">
+                              <p className="text-white/60 text-sm mb-3">No tienes enlaces todavía</p>
+                            </div>
+                          )}
+
+                          {/* Botones de acción */}
+                          <div className="flex gap-2 justify-center">
+                            <Button
+                              onClick={() => openSectionDialog()}
+                              variant="outline"
+                              size="sm"
+                              className="bg-transparent border-2 border-white/20 text-white hover:bg-white/10"
+                            >
+                              <Plus className="h-4 w-4 mr-2" />
+                              Agregar sección
+                            </Button>
+                            <Button
+                              onClick={() => openLinkDialog()}
+                              size="sm"
+                              style={{ 
+                                backgroundColor: profile?.theme?.buttonColor || "#ff6b35",
+                                color: profile?.theme?.buttonTextColor || "#ffffff"
+                              }}
+                            >
+                              <Plus className="h-4 w-4 mr-2" />
+                              Agregar enlace
+                            </Button>
+                          </div>
+                        </>
+                      )
+                    })()}
                   </div>
 
                   
@@ -879,67 +1292,125 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle>Mis Enlaces</CardTitle>
-                    <CardDescription>Gestiona los enlaces de tu perfil</CardDescription>
+                    <CardDescription>Gestiona los enlaces y secciones de tu perfil</CardDescription>
                   </div>
-                  <Button onClick={() => openLinkDialog()}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Agregar enlace
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => openSectionDialog()}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Agregar sección
+                    </Button>
+                    <Button onClick={() => openLinkDialog()}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Agregar enlace
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
-                {links.length === 0 ? (
+                {sections.length === 0 && links.length === 0 ? (
                   <div className="text-center py-12">
-                    <p className="text-muted-foreground mb-4">No tienes enlaces todavía</p>
-                    <Button onClick={() => openLinkDialog()}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Crear tu primer enlace
-                    </Button>
+                    <p className="text-muted-foreground mb-4">No tienes secciones ni enlaces todavía</p>
+                    <div className="flex gap-2 justify-center">
+                      <Button variant="outline" onClick={() => openSectionDialog()}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Crear sección
+                      </Button>
+                      <Button onClick={() => openLinkDialog()}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Crear enlace
+                      </Button>
+                    </div>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {links.map((link, index) => {
-                      const isDragging = dragState.draggedItem?.id === link.id
-                      const isDragOver = dragState.draggedOverItem?.id === link.id
-                      
-                      return (
-                        <div
-                          key={link.id}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, link, index)}
-                          onDragOver={(e) => handleDragOver(e, link, index)}
-                          onDragLeave={handleDragLeave}
-                          onDrop={handleDrop}
-                          onDragEnd={handleDragEnd}
-                          className={`flex items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-all duration-200 cursor-move ${
-                            isDragging ? 'opacity-50 scale-95' : ''
-                          } ${
-                            isDragOver ? 'ring-2 ring-primary/50 ring-offset-2' : ''
-                          }`}
-                        >
-                          <GripVertical className="h-5 w-5 text-muted-foreground cursor-move" />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-medium truncate">{link.title}</h3>
-                              {link.type === "external" && <ExternalLink className="h-4 w-4 text-muted-foreground" />}
-                              {!link.isActive && <span className="text-xs bg-muted px-2 py-1 rounded">Inactivo</span>}
+                  <div className="space-y-6">
+                    {/* Secciones */}
+                    {sections.length > 0 && (
+                      <div className="space-y-3">
+                        <h3 className="text-lg font-semibold">Secciones</h3>
+                        {sections.map((section) => (
+                          <div
+                            key={section.id}
+                            className="flex items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-all duration-200"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-medium">{section.title}</h4>
+                                {!section.isActive && <span className="text-xs bg-muted px-2 py-1 rounded">Inactiva</span>}
+                              </div>
+                              {section.description && (
+                                <p className="text-sm text-muted-foreground">{section.description}</p>
+                              )}
+                              <p className="text-xs text-muted-foreground">
+                                {links.filter(link => link.sectionId === section.id).length} enlaces
+                              </p>
                             </div>
-                            {link.description && (
-                              <p className="text-sm text-muted-foreground truncate">{link.description}</p>
-                            )}
-                            <p className="text-xs text-muted-foreground truncate">{link.url}</p>
+                            <div className="flex gap-2">
+                              <Button variant="ghost" size="sm" onClick={() => openSectionDialog(section)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => handleDeleteSection(section.id)}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => openLinkDialog(link)}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDeleteLink(link.id)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      )
-                    })}
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Enlaces */}
+                    {links.length > 0 && (
+                      <div className="space-y-3">
+                        <h3 className="text-lg font-semibold">Enlaces</h3>
+                        {links.map((link, index) => {
+                          const isDragging = dragState.draggedItem?.id === link.id
+                          const isDragOver = dragState.draggedOverItem?.id === link.id
+                          const section = sections.find(s => s.id === link.sectionId)
+                          
+                          return (
+                            <div
+                              key={link.id}
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, link, index)}
+                              onDragOver={(e) => handleDragOver(e, link, index)}
+                              onDragLeave={handleDragLeave}
+                              onDrop={handleDrop}
+                              onDragEnd={handleDragEnd}
+                              className={`flex items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-all duration-200 cursor-move ${
+                                isDragging ? 'opacity-50 scale-95' : ''
+                              } ${
+                                isDragOver ? 'ring-2 ring-primary/50 ring-offset-2' : ''
+                              }`}
+                            >
+                              <GripVertical className="h-5 w-5 text-muted-foreground cursor-move" />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <h3 className="font-medium truncate">{link.title}</h3>
+                                  {link.type === "external" && <ExternalLink className="h-4 w-4 text-muted-foreground" />}
+                                  {!link.isActive && <span className="text-xs bg-muted px-2 py-1 rounded">Inactivo</span>}
+                                  {section && (
+                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                      {section.title}
+                                    </span>
+                                  )}
+                                </div>
+                                {link.description && (
+                                  <p className="text-sm text-muted-foreground truncate">{link.description}</p>
+                                )}
+                                <p className="text-xs text-muted-foreground truncate">{link.url}</p>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button variant="ghost" size="sm" onClick={() => openLinkDialog(link)}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleDeleteLink(link.id)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -1143,6 +1614,22 @@ export default function DashboardPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="linkSection">Sección (opcional)</Label>
+              <Select value={linkSectionId} onValueChange={setLinkSectionId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin sección" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Sin sección</SelectItem>
+                  {sections.filter(s => s.isActive).map((section) => (
+                    <SelectItem key={section.id} value={section.id}>
+                      {section.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-center justify-between">
               <Label htmlFor="linkActive">Enlace activo</Label>
               <Switch id="linkActive" checked={linkActive} onCheckedChange={setLinkActive} />
@@ -1154,6 +1641,51 @@ export default function DashboardPage() {
             </Button>
             <Button onClick={handleSaveLink} disabled={!linkTitle || !linkUrl}>
               {editingLink ? "Actualizar" : "Crear"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de secciones */}
+      <Dialog open={sectionDialogOpen} onOpenChange={setSectionDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingSection ? "Editar sección" : "Nueva sección"}</DialogTitle>
+            <DialogDescription>
+              {editingSection ? "Modifica los detalles de la sección" : "Crea una nueva sección para organizar tus enlaces"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="sectionTitle">Título de la sección</Label>
+              <Input
+                id="sectionTitle"
+                value={sectionTitle}
+                onChange={(e) => setSectionTitle(e.target.value)}
+                placeholder="Ej: Redes Sociales"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sectionDescription">Descripción (opcional)</Label>
+              <Textarea
+                id="sectionDescription"
+                value={sectionDescription}
+                onChange={(e) => setSectionDescription(e.target.value)}
+                placeholder="Descripción breve de la sección"
+                rows={2}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="sectionActive">Sección activa</Label>
+              <Switch id="sectionActive" checked={sectionActive} onCheckedChange={setSectionActive} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSectionDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveSection} disabled={!sectionTitle}>
+              {editingSection ? "Actualizar" : "Crear"}
             </Button>
           </DialogFooter>
         </DialogContent>

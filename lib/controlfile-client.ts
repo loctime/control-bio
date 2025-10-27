@@ -16,7 +16,7 @@ export async function getControlBioFolder(): Promise<string> {
   try {
     const existingFolders = await listFiles(null);
     const existingFolder = existingFolders?.find(
-      folder => folder.type === 'folder' && folder.name === 'ControlBio'
+      (folder: { type: string; name: string }) => folder.type === 'folder' && folder.name === 'ControlBio'
     );
     
     if (existingFolder) {
@@ -40,10 +40,10 @@ export async function getControlBioFolder(): Promise<string> {
       id: `controlbio-main-${Date.now()}`,
       name: 'ControlBio',
       parentId: null,
+      source: 'taskbar', // ✅ CLAVE: Aparece en taskbar (fuera de metadata según API)
       icon: 'Taskbar',
       color: 'text-purple-600',
       metadata: {
-        source: 'taskbar', // ✅ CLAVE según documentación oficial
         isMainFolder: true,
         isPublic: false
       }
@@ -275,7 +275,7 @@ export async function ensureFolderExists(folderName: string, parentId: string): 
     
     // 2. Buscar carpeta existente
     const existingFolder = items?.find(
-      item => item.type === 'folder' && item.name === folderName
+      (item: { type: string; name: string }) => item.type === 'folder' && item.name === folderName
     );
     
     if (existingFolder) {

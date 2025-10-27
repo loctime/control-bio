@@ -1,6 +1,41 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // ===== FUNCIONES AUXILIARES =====
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function userDocExists() {
+      return exists(/databases/$(database)/documents/apps/controld/users/$(request.auth.uid));
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/apps/controld/users/$(request.auth.uid)).data;
+    }
+    
+    function isMaxDev() {
+      return isAuthenticated() && userDocExists() && getUserData().role == 'maxdev';
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && userDocExists() && (getUserData().role == 'admin' || getUserData().role == 'maxdev');
+    }
+    
+    function isBranch() {
+      return isAuthenticated() && userDocExists() && getUserData().role == 'branch';
+    }
+    
+    function isFactory() {
+      return isAuthenticated() && userDocExists() && getUserData().role == 'factory';
+    }
+    
+    function isDelivery() {
+      return isAuthenticated() && userDocExists() && getUserData().role == 'delivery';
+    }
+    
     // ===== REGLAS PARA CONTROLBIO (LINK-IN-BIO) =====
     
     match /apps/controlbio/users/{userId} {
@@ -8,30 +43,274 @@ service cloud.firestore {
       allow read: if true;
       
       // Escritura: Solo el dueño puede modificar su perfil
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if isAuthenticated() && request.auth.uid == userId;
       
-      // Validación de datos para creación - más flexible para desarrollo
-      allow create: if request.auth != null 
+      // Validación de datos para creación
+      allow create: if isAuthenticated() 
                     && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.email == request.auth.token.email
                     && request.resource.data.username is string
-                    && request.resource.data.displayName is string;
+                    && request.resource.data.username.size() >= 3
+                    && request.resource.data.username.size() <= 20
+                    && request.resource.data.displayName is string
+                    && request.resource.data.displayName.size() >= 1
+                    && request.resource.data.displayName.size() <= 50;
     }
     
-    // Colección de enlaces para ControlBio
+    // Colección de enlaces para ControlBio - VERSIÓN CORREGIDA
     match /apps/controlbio/links/{linkId} {
       // Lectura: Cualquiera puede leer enlaces activos (necesario para páginas públicas)
       // Solo el dueño puede leer enlaces inactivos
       allow read: if resource.data.isActive == true || 
-                     (request.auth != null && request.auth.uid == resource.data.userId);
+                     (isAuthenticated() && request.auth.uid == resource.data.userId);
       
       // Escritura: Solo el dueño puede crear/editar/eliminar sus enlaces
-      allow write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow write: if isAuthenticated() && request.auth.uid == resource.data.userId;
       
-      // Validación de datos para creación - más flexible para desarrollo
-      allow create: if request.auth != null 
+      // Validación de datos para creación - VERSIÓN MÁS FLEXIBLE
+      allow create: if isAuthenticated() 
                     && request.resource.data.userId == request.auth.uid
                     && request.resource.data.title is string
-                    && request.resource.data.url is string;
+                    && request.resource.data.title.size() >= 1
+                    && request.resource.data.title.size() <= 100
+                    && request.resource.data.url is string
+                    && request.resource.data.url.size() >= 1
+                    && request.resource.data.order is number
+                    && request.resource.data.isActive is bool;
+      
+      // Validación de datos para actualización - PERMITE sectionId
+      allow update: if isAuthenticated() 
+                    && request.auth.uid == resource.data.userId
+                    && request.resource.data.userId == resource.data.userId
+                    && request.resource.data.title is string
+                    && request.resource.data.title.size() >= 1
+                    && request.resource.data.title.size() <= 100
+                    && request.resource.data.url is string
+                    && request.resource.data.url.size() >= 1
+                    && request.resource.data.order is number
+                    && request.resource.data.isActive is bool;
+    }
+    
+    // Colección de secciones para ControlBio
+    match /apps/controlbio/sections/{sectionId} {
+      // Lectura: Cualquiera puede leer (temporal para debug)
+      allow read: if true;
+      
+      // Escritura: Solo el dueño puede crear/editar/eliminar sus secciones
+      allow write: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      
+      // Validación de datos para creación
+      allow create: if isAuthenticated() 
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.title is string
+                    && request.resource.data.title.size() >= 1
+                    && request.resource.data.title.size() <= 50
+                    && request.resource.data.order is number
+                    && request.resource.data.isActive is bool;
+      
+      // Validación de datos para actualización
+      allow update: if isAuthenticated() 
+                    && request.auth.uid == resource.data.userId
+                    && request.resource.data.userId == resource.data.userId
+                    && request.resource.data.title is string
+                    && request.resource.data.title.size() >= 1
+                    && request.resource.data.title.size() <= 50
+                    && request.resource.data.order is number
+                    && request.resource.data.isActive is bool;
+    }
+    
+    // ===== REGLAS PARA CONTROLDAT (RED SOCIAL) =====
+    
+    match /apps/controlDat {
+      match /users/{userId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && request.auth.uid == userId;
+        allow update: if isAuthenticated() && request.auth.uid == userId;
+        allow delete: if isAuthenticated() && request.auth.uid == userId;
+      }
+      
+      match /posts/{postId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update: if isAuthenticated() && request.auth.uid == resource.data.userId;
+        allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      }
+      
+      match /comments/{commentId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update: if isAuthenticated() && request.auth.uid == resource.data.userId;
+        allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      }
+      
+      match /notifications/{notificationId} {
+        allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
+        allow create: if isAuthenticated();
+        allow update: if isAuthenticated() && request.auth.uid == resource.data.userId;
+        allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      }
+    }
+    
+    // ===== REGLAS PARA REMITOS (CONTROLD) =====
+    
+    match /apps/controld {
+      match /users/{userId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update: if isAuthenticated();
+        allow delete: if isMaxDev() || isAdmin();
+      }
+      
+      match /branches/{branchId} {
+        allow read: if isAuthenticated();
+        allow write: if isMaxDev() || isAdmin();
+      }
+      
+      match /products/{productId} {
+        allow read: if isAuthenticated();
+        allow create: if isMaxDev() || isAdmin() || isFactory();
+        allow update, delete: if isMaxDev() || isAdmin();
+      }
+      
+      match /orders/{orderId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update: if isAuthenticated();
+        allow delete: if isMaxDev() || isAdmin();
+      }
+      
+      match /deliveryNotes/{noteId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update: if isAuthenticated();
+        allow delete: if isMaxDev() || isAdmin();
+      }
+      
+      // PLANTILLAS - SIMPLIFICADO PARA QUERIES
+      match /templates/{templateId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update: if isAuthenticated();
+        allow delete: if isAuthenticated();
+      }
+      
+      match /remit-metadata/{metadataId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update: if isAuthenticated();
+        allow delete: if isMaxDev() || isAdmin();
+      }
+      
+      // COLAS DE REPOSICIÓN
+      match /replacementQueues/{queueId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update: if isAuthenticated();
+        allow delete: if isMaxDev() || isAdmin();
+      }
+    }
+    
+    // ===== REGLAS PARA CONTROLGASTOS =====
+    
+    match /apps/controlgastos/users/{userId}/expenses/{expenseId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    match /apps/controlgastos/users/{userId}/payments/{paymentId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    match /apps/controlgastos/users/{userId}/receipts/{receiptId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    match /apps/controlgastos/users/{userId}/recurring_items/{itemId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    match /apps/controlgastos/users/{userId}/recurring_items_instances/{instanceId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    match /apps/controlgastos/users/{userId}/settings/{settingId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    match /apps/controlgastos/categories/{categoryId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    match /expenses/{expenseId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+    
+    match /payments/{paymentId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+    
+    match /invoices/{invoiceId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+    
+    // ===== REGLAS PARA CONTROLFILE (MEJORADAS) =====
+    
+    // Archivos - Solo el dueño puede acceder
+    match /files/{fileId} {
+      allow read, write: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Carpetas - Solo el dueño puede acceder
+    match /folders/{folderId} {
+      allow read, write: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Sesiones de upload - Solo el dueño puede acceder
+    match /uploadSessions/{sessionId} {
+      allow read, write: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+    }
+    
+    // Compartir archivos - Públicos o solo el dueño
+    match /shares/{shareId} {
+      allow read: if resource.data.isPublic == true || 
+                     (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow write: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Papelera - Solo el dueño puede acceder
+    match /trash/{trashId} {
+      allow read, write: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Usuarios de ControlFile - Solo el dueño puede acceder
+    match /users/{userId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // ===== REGLAS PARA CONTROLCICLO =====
+    
+    match /apps/controlciclo/users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ===== REGLAS PARA AUDITORIA =====
+    
+    match /audit/{auditId} {
+      allow read: if isAuthenticated();
+      allow write: if isMaxDev() || isAdmin();
+    }
+    
+    // Denegar acceso por defecto
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

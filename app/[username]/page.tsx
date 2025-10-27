@@ -2,9 +2,10 @@ import { collection, query, where, getDocs, orderBy } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { notFound } from "next/navigation"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { ExternalLink } from "lucide-react"
-import type { UserProfile, Link } from "@/types"
+import { ExternalLink, ChevronDown, ChevronRight } from "lucide-react"
+import type { UserProfile, Link, Section } from "@/types"
 import type { Metadata } from "next"
+import { ExpandableSections } from "./ExpandableSections"
 
 interface ProfilePageProps {
   params: Promise<{
@@ -43,7 +44,19 @@ async function getProfileByUsername(username: string) {
     const links = linksSnap.docs.map((doc) => {
       const data = doc.data()
       console.log("Procesando enlace:", data.title, "ID:", doc.id)
-      return { ...data, id: doc.id } as Link
+      
+      // Manejar fechas que pueden ser Date o string
+      const createdAt = data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : 
+                       (typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString())
+      const updatedAt = data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : 
+                       (typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString())
+      
+      return {
+        ...data,
+        id: doc.id,
+        createdAt,
+        updatedAt,
+      } as Link
     })
     
     // Ordenar manualmente por el campo order
@@ -51,7 +64,68 @@ async function getProfileByUsername(username: string) {
     
     console.log("Enlaces procesados y ordenados:", links.length)
 
-    return { profile: profileData, links }
+    // Get user's sections
+    console.log("Buscando secciones para userId:", userId)
+    let sections: Section[] = []
+    
+    try {
+      // Consulta simplificada sin orderBy para evitar problemas de índices
+      const sectionsQuery = query(
+        collection(db, "apps/controlbio/sections"),
+        where("userId", "==", userId)
+      )
+      const sectionsSnap = await getDocs(sectionsQuery)
+      console.log("Documentos de secciones encontrados:", sectionsSnap.docs.length)
+      
+      // Debug: ver todos los documentos sin procesar
+      sectionsSnap.docs.forEach((doc, index) => {
+        const data = doc.data()
+        console.log(`Sección ${index + 1}:`, {
+          id: doc.id,
+          title: data.title,
+          isActive: data.isActive,
+          userId: data.userId,
+          order: data.order
+        })
+      })
+      
+      sections = sectionsSnap.docs.map((doc) => {
+        const data = doc.data()
+        console.log("Procesando sección:", data.title, "ID:", doc.id, "isActive:", data.isActive, "order:", data.order)
+        
+        // Manejar fechas que pueden ser Date o string
+        const createdAt = data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : 
+                         (typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString())
+        const updatedAt = data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : 
+                         (typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString())
+        
+        return {
+          ...data,
+          id: doc.id,
+          createdAt,
+          updatedAt,
+        } as Section
+      })
+      
+      // Filtrar secciones activas y ordenar manualmente
+      sections = sections
+        .filter(section => section.isActive)
+        .sort((a, b) => (a.order || 0) - (b.order || 0))
+      
+      console.log("Secciones activas procesadas:", sections.length)
+      console.log("Secciones activas data:", sections)
+    } catch (error) {
+      console.error("Error cargando secciones:", error)
+      console.error("Detalles del error de secciones:", {
+        message: error instanceof Error ? error.message : 'Error desconocido',
+        code: (error as any)?.code,
+        stack: error instanceof Error ? error.stack : undefined
+      })
+      console.log("Continuando sin secciones...")
+      sections = []
+    }
+
+    return { profile: profileData, links, sections }
   } catch (error) {
     console.error("Error fetching profile:", error)
     console.error("Detalles del error:", {
@@ -101,7 +175,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     notFound()
   }
 
-  const { profile, links } = data
+  const { profile, links, sections } = data
   const theme = profile.theme
 
   return (
@@ -131,33 +205,13 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
           {profile.bio && <p className="text-lg opacity-90 max-w-md mx-auto whitespace-pre-wrap">{profile.bio}</p>}
         </div>
 
-        {/* Links */}
+        {/* Links and Sections */}
         <div className="space-y-4 max-w-md mx-auto">
-          {links.length === 0 ? (
-            <div className="text-center py-12 opacity-60">
-              <p>No hay enlaces disponibles</p>
-            </div>
-          ) : (
-            links.map((link) => (
-              <a
-                key={link.id}
-                href={link.url}
-                target={link.type === "external" ? "_blank" : "_self"}
-                rel={link.type === "external" ? "noopener noreferrer" : undefined}
-                className="block w-full px-4 py-2 rounded-lg transition-all hover:scale-105 hover:shadow-lg"
-                style={{
-                  backgroundColor: theme.buttonColor,
-                  color: theme.buttonTextColor,
-                }}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <h3 className="font-semibold text-lg leading-tight">{link.title}</h3>
-                  {link.type === "external" && <ExternalLink className="h-4 w-4 flex-shrink-0" />}
-                </div>
-                {link.description && <p className="text-xs opacity-90 leading-tight text-center mt-1">{link.description}</p>}
-              </a>
-            ))
-          )}
+          <ExpandableSections 
+            links={links} 
+            sections={sections} 
+            theme={theme}
+          />
         </div>
 
         {/* Footer */}

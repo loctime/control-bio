@@ -25,6 +25,18 @@ export interface Link {
   type: "external" | "internal"
   order: number
   isActive: boolean
-  createdAt: Date
-  updatedAt: Date
+  sectionId?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Section {
+  id: string
+  userId: string
+  title: string
+  description?: string
+  order: number
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
 }
