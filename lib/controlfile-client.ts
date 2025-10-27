@@ -26,6 +26,7 @@ export async function getControlBioFolder(): Promise<string> {
       id: `controlbio-main-${Date.now()}`,
       name: 'ControlBio',
       parentId: null,
+      source: 'taskbar', // ✅ WORKAROUND: También aquí porque ControlFile ignora metadata.source
       icon: 'Taskbar',
       color: 'text-purple-600',
       metadata: {
