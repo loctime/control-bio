@@ -27,9 +27,38 @@ export async function getControlBioFolder(): Promise<string> {
     console.warn('Error verificando carpetas existentes:', error);
   }
   
-  // Crear la carpeta con appCode específico para ControlBio
+  // Intentar crear la carpeta usando el endpoint root con appCode
   console.log('📁 Creando carpeta ControlBio...');
   
+  try {
+    // Primero intentar con el endpoint root que podría manejar mejor el appCode
+    const rootResponse = await fetch(`${BACKEND_URL}/api/folders/root`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: 'ControlBio',
+        pin: 1,
+        icon: 'Briefcase',
+        color: 'text-purple-600',
+        appCode: 'controlbio'
+      }),
+    });
+    
+    if (rootResponse.ok) {
+      const result = await rootResponse.json();
+      console.log('✅ Carpeta ControlBio creada via root endpoint:', result.folderId);
+      return result.folderId;
+    } else {
+      console.warn('❌ Endpoint root falló:', rootResponse.status);
+    }
+  } catch (error) {
+    console.warn('Error con endpoint root:', error);
+  }
+  
+  // Fallback: usar el endpoint create normal
   const response = await fetch(`${BACKEND_URL}/api/folders/create`, {
     method: 'POST',
     headers: {
@@ -41,7 +70,7 @@ export async function getControlBioFolder(): Promise<string> {
       parentId: null,
       icon: 'Briefcase',
       color: 'text-purple-600',
-      appCode: 'controlbio' // ✅ Esto es lo importante
+      appCode: 'controlbio'
     }),
   });
   
@@ -51,7 +80,15 @@ export async function getControlBioFolder(): Promise<string> {
   }
   
   const result = await response.json();
-  console.log('✅ Carpeta ControlBio creada:', result.folderId);
+  console.log('✅ Carpeta ControlBio creada via create endpoint:', result.folderId);
+  
+  // Intentar agregar la carpeta al taskbar manualmente
+  try {
+    await addToTaskbar(result.folderId);
+    console.log('✅ Carpeta agregada al taskbar');
+  } catch (error) {
+    console.warn('⚠️ No se pudo agregar al taskbar, pero la carpeta funciona:', error);
+  }
   
   return result.folderId;
 }
@@ -285,6 +322,32 @@ export async function ensureFolderExists(folderName: string, parentId: string): 
   } catch (error) {
     console.error('Error verificando/creando carpeta:', error);
     throw error;
+  }
+}
+
+// 📌 AGREGAR CARPETA AL TASKBAR
+async function addToTaskbar(folderId: string): Promise<void> {
+  const token = await getToken();
+  
+  const response = await fetch(`${BACKEND_URL}/api/user/taskbar`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      items: [{
+        id: folderId,
+        type: 'folder',
+        name: 'ControlBio',
+        icon: 'Briefcase',
+        color: 'text-purple-600'
+      }]
+    }),
+  });
+  
+  if (!response.ok) {
+    throw new Error('No se pudo agregar la carpeta al taskbar');
   }
 }
 
