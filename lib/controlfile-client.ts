@@ -52,6 +52,14 @@ export async function getControlBioFolder(): Promise<string> {
   const result = await response.json();
   console.log('✅ Carpeta ControlBio creada:', result.folderId);
   
+  // Actualizar el source a taskbar para que aparezca en el taskbar
+  try {
+    await updateFolderToTaskbar(result.folderId);
+    console.log('✅ Carpeta actualizada para aparecer en taskbar');
+  } catch (error) {
+    console.warn('⚠️ No se pudo actualizar a taskbar, pero la carpeta funciona:', error);
+  }
+  
   return result.folderId;
 }
 
@@ -248,7 +256,7 @@ export async function createSubFolder(name: string, parentId: string): Promise<s
     body: JSON.stringify({ 
       name, 
       parentId,
-      source: 'taskbar'  // Las subcarpetas van dentro de la carpeta principal, no al taskbar
+      source: 'navbar'  // Las subcarpetas van dentro de la carpeta principal, no al taskbar
     }),
   });
   
@@ -285,5 +293,51 @@ export async function ensureFolderExists(folderName: string, parentId: string): 
     console.error('Error verificando/creando carpeta:', error);
     throw error;
   }
+}
+
+// 🔄 ACTUALIZAR CARPETA A TASKBAR
+async function updateFolderToTaskbar(folderId: string): Promise<void> {
+  const token = await getToken();
+  
+  // Intentar con el endpoint de actualización de metadata
+  const response = await fetch(`${BACKEND_URL}/api/folders/update`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      folderId,
+      metadata: {
+        source: 'taskbar'
+      }
+    }),
+  });
+  
+  if (!response.ok) {
+    // Si no funciona, intentar con el endpoint de carpetas del taskbar
+    const taskbarResponse = await fetch(`${BACKEND_URL}/api/user/taskbar`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        items: [{
+          id: folderId,
+          type: 'folder',
+          name: 'ControlBio',
+          icon: 'Briefcase',
+          color: 'text-purple-600'
+        }]
+      }),
+    });
+    
+    if (!taskbarResponse.ok) {
+      throw new Error('No se pudo actualizar la carpeta a taskbar');
+    }
+  }
+  
+  console.log('✅ Carpeta actualizada para taskbar');
 }
 
