@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { signInWithPopup, GoogleAuthProvider } from "firebase/auth"
 import { doc, setDoc, getDoc } from "firebase/firestore"
 import { auth, db } from "@/lib/firebase"
@@ -8,11 +8,22 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/lib/auth-context"
+import { Spinner } from "@/components/ui/spinner"
 
 export default function HomePage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
+  const { user, loading: authLoading } = useAuth()
+
+  // Redirigir si ya está autenticado
+  useEffect(() => {
+    if (!authLoading && user) {
+      console.log("Usuario ya autenticado, redirigiendo al dashboard")
+      router.push("/dashboard")
+    }
+  }, [user, authLoading, router])
 
   const handleGoogleLogin = async () => {
     setLoading(true)
@@ -66,6 +77,15 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Mostrar spinner mientras se verifica la autenticación
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Spinner className="h-8 w-8" />
+      </div>
+    )
   }
 
   return (

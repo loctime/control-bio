@@ -266,7 +266,7 @@ export async function createSubFolder(name: string, parentId: string): Promise<s
     body: JSON.stringify({ 
       name, 
       parentId,
-      source: 'navbar'
+      source: 'navbar'  // Las subcarpetas van dentro de la carpeta principal, no al taskbar
     }),
   });
   
