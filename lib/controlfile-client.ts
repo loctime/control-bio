@@ -27,7 +27,7 @@ export async function getControlBioFolder(): Promise<string> {
     console.warn('Error verificando carpetas existentes:', error);
   }
   
-  // Crear la carpeta (se creará con appCode: 'controlfile')
+  // Crear la carpeta con source: 'taskbar' según la documentación oficial
   console.log('📁 Creando carpeta ControlBio...');
   
   const response = await fetch(`${BACKEND_URL}/api/folders/create`, {
@@ -37,11 +37,16 @@ export async function getControlBioFolder(): Promise<string> {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
+      id: `controlbio-main-${Date.now()}`,
       name: 'ControlBio',
       parentId: null,
-      icon: 'Briefcase',
-      color: 'text-purple-600'
-      // No enviar appCode - se creará como 'controlfile'
+      icon: 'Taskbar',
+      color: 'text-purple-600',
+      metadata: {
+        source: 'taskbar', // ✅ CLAVE según documentación oficial
+        isMainFolder: true,
+        isPublic: false
+      }
     }),
   });
   
@@ -51,15 +56,7 @@ export async function getControlBioFolder(): Promise<string> {
   }
   
   const result = await response.json();
-  console.log('✅ Carpeta ControlBio creada:', result.folderId);
-  
-  // ✅ AGREGAR AL TASKBAR MANUALMENTE
-  try {
-    await addToTaskbar(result.folderId);
-    console.log('✅ Carpeta agregada al taskbar');
-  } catch (error) {
-    console.warn('⚠️ No se pudo agregar al taskbar:', error);
-  }
+  console.log('✅ Carpeta ControlBio creada en taskbar:', result.folderId);
   
   return result.folderId;
 }
@@ -296,31 +293,6 @@ export async function ensureFolderExists(folderName: string, parentId: string): 
   }
 }
 
-// 📌 AGREGAR CARPETA AL TASKBAR
-async function addToTaskbar(folderId: string): Promise<void> {
-  const token = await getToken();
-  
-  const response = await fetch(`${BACKEND_URL}/api/user/taskbar`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      items: [{
-        id: folderId,
-        type: 'folder',
-        name: 'ControlBio',
-        icon: 'Briefcase',
-        color: 'text-purple-600'
-      }]
-    }),
-  });
-  
-  if (!response.ok) {
-    throw new Error('No se pudo agregar la carpeta al taskbar');
-  }
-}
 
 
 
