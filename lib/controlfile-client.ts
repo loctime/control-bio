@@ -12,22 +12,8 @@ async function getToken() {
 export async function getControlBioFolder(): Promise<string> {
   const token = await getToken();
   
-  // Verificar si la carpeta ya existe
-  try {
-    const existingFolders = await listFiles(null);
-    const existingFolder = existingFolders?.find(
-      (folder: { type: string; name: string }) => folder.type === 'folder' && folder.name === 'ControlBio'
-    );
-    
-    if (existingFolder) {
-      console.log('✅ Carpeta ControlBio ya existe:', existingFolder.id);
-      return existingFolder.id;
-    }
-  } catch (error) {
-    console.warn('Error verificando carpetas existentes:', error);
-  }
-  
-  // Crear la carpeta con source: 'taskbar' según la documentación oficial
+  // Crear la carpeta directamente - no verificar existencia porque el backend
+  // actual crea en colección "folders" pero listFiles busca en "files"
   console.log('📁 Creando carpeta ControlBio...');
   
   const response = await fetch(`${BACKEND_URL}/api/folders/create`, {
@@ -40,12 +26,12 @@ export async function getControlBioFolder(): Promise<string> {
       id: `controlbio-main-${Date.now()}`,
       name: 'ControlBio',
       parentId: null,
-      source: 'taskbar', // ✅ CLAVE: Aparece en taskbar (fuera de metadata según API)
       icon: 'Taskbar',
       color: 'text-purple-600',
       metadata: {
         isMainFolder: true,
-        isPublic: false
+        isPublic: false,
+        source: 'taskbar' // ✅ CLAVE: Aparece en taskbar (dentro de metadata)
       }
     }),
   });
@@ -254,7 +240,9 @@ export async function createSubFolder(name: string, parentId: string): Promise<s
     body: JSON.stringify({ 
       name, 
       parentId,
-      source: 'navbar'  // Las subcarpetas van dentro de la carpeta principal, no al taskbar
+      metadata: {
+        source: 'navbar'  // Las subcarpetas van dentro de la carpeta principal, no al taskbar
+      }
     }),
   });
   
