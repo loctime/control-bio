@@ -123,3 +123,26 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Estilos para drag and drop */
+.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+}
+
+.drag-over {
+  @apply ring-2 ring-primary/50 ring-offset-2;
+}
+
+/* Mejorar la experiencia de arrastre */
+[draggable="true"] {
+  cursor: move;
+}
+
+[draggable="true"]:hover {
+  cursor: grab;
+}
+
+[draggable="true"]:active {
+  cursor: grabbing;
+}

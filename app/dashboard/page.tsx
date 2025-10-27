@@ -15,6 +15,7 @@ import {
   updateDoc,
   deleteDoc,
   orderBy,
+  writeBatch,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -45,6 +46,7 @@ import {
   getDownloadUrl, 
   ensureFolderExists 
 } from "@/lib/controlfile-client"
+import { useDragAndDrop } from "@/hooks/useDragAndDrop"
 
 export default function DashboardPage() {
   const { user, loading: authLoading, signOut } = useAuth()
@@ -470,6 +472,50 @@ export default function DashboardPage() {
     }
   }
 
+  const handleReorderLinks = async (reorderedLinks: Link[]) => {
+    if (!user) return
+
+    try {
+      // Actualizar el estado local primero
+      setLinks(reorderedLinks)
+
+      // Actualizar el orden en la base de datos usando batch
+      const batch = writeBatch(db)
+      
+      reorderedLinks.forEach((link, index) => {
+        const linkRef = doc(db, "apps/controlbio/links", link.id)
+        batch.update(linkRef, { 
+          order: index,
+          updatedAt: new Date()
+        })
+      })
+
+      await batch.commit()
+
+      toast({
+        title: "Orden actualizado",
+        description: "Los enlaces se han reordenado correctamente",
+      })
+    } catch (error: any) {
+      console.error("Error reordering links:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el orden de los enlaces",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Configurar drag and drop
+  const {
+    dragState,
+    handleDragStart,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handleDragEnd,
+  } = useDragAndDrop(links, handleReorderLinks)
+
   const handleSignOut = async () => {
     await signOut()
     router.push("/")
@@ -782,27 +828,53 @@ export default function DashboardPage() {
                       <div className="space-y-3">
                         {links
                           .filter(link => link.isActive)
-                          .map((link) => (
-                            <a
-                              key={link.id}
-                              href={link.url}
-                              target={link.type === "external" ? "_blank" : "_self"}
-                              rel={link.type === "external" ? "noopener noreferrer" : ""}
-                              className="block w-full px-4 py-2 rounded-lg font-medium transition-opacity hover:opacity-90"
-                              style={{ 
-                                backgroundColor: profile?.theme?.buttonColor || "#ff6b35",
-                                color: profile?.theme?.buttonTextColor || "#ffffff"
-                              }}
-                            >
-                              <div className="flex items-center justify-center gap-2">
-                                <span className="text-lg font-semibold leading-tight">{link.title}</span>
-                                {link.type === "external" && <ExternalLink className="h-4 w-4" />}
+                          .map((link, index) => {
+                            const isDragging = dragState.draggedItem?.id === link.id
+                            const isDragOver = dragState.draggedOverItem?.id === link.id
+                            
+                            return (
+                              <div
+                                key={link.id}
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, link, index)}
+                                onDragOver={(e) => handleDragOver(e, link, index)}
+                                onDragLeave={handleDragLeave}
+                                onDrop={handleDrop}
+                                onDragEnd={handleDragEnd}
+                                className={`relative transition-all duration-200 cursor-move ${
+                                  isDragging ? 'opacity-50 scale-95' : ''
+                                } ${
+                                  isDragOver ? 'ring-2 ring-white/50 ring-offset-2 ring-offset-transparent' : ''
+                                }`}
+                              >
+                                <a
+                                  href={link.url}
+                                  target={link.type === "external" ? "_blank" : "_self"}
+                                  rel={link.type === "external" ? "noopener noreferrer" : ""}
+                                  className="block w-full px-4 py-2 rounded-lg font-medium transition-opacity hover:opacity-90 relative group"
+                                  style={{ 
+                                    backgroundColor: profile?.theme?.buttonColor || "#ff6b35",
+                                    color: profile?.theme?.buttonTextColor || "#ffffff"
+                                  }}
+                                  onClick={(e) => {
+                                    // Permitir que el drag funcione sin activar el enlace
+                                    if (isDragging) {
+                                      e.preventDefault()
+                                    }
+                                  }}
+                                >
+                                  <div className="flex items-center justify-center gap-2">
+                                    <GripVertical className="h-4 w-4 opacity-60 group-hover:opacity-100 transition-opacity" />
+                                    <span className="text-lg font-semibold leading-tight">{link.title}</span>
+                                    {link.type === "external" && <ExternalLink className="h-4 w-4" />}
+                                  </div>
+                                  {link.description && (
+                                    <p className="text-xs opacity-80 leading-tight text-center mt-1">{link.description}</p>
+                                  )}
+                                </a>
                               </div>
-                              {link.description && (
-                                <p className="text-xs opacity-80 leading-tight text-center mt-1">{link.description}</p>
-                              )}
-                            </a>
-                          ))}
+                            )
+                          })}
                       </div>
                     ) : (
                       <div className="text-center py-4">
@@ -855,33 +927,48 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {links.map((link) => (
-                      <div
-                        key={link.id}
-                        className="flex items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors"
-                      >
-                        <GripVertical className="h-5 w-5 text-muted-foreground cursor-move" />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-medium truncate">{link.title}</h3>
-                            {link.type === "external" && <ExternalLink className="h-4 w-4 text-muted-foreground" />}
-                            {!link.isActive && <span className="text-xs bg-muted px-2 py-1 rounded">Inactivo</span>}
+                    {links.map((link, index) => {
+                      const isDragging = dragState.draggedItem?.id === link.id
+                      const isDragOver = dragState.draggedOverItem?.id === link.id
+                      
+                      return (
+                        <div
+                          key={link.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, link, index)}
+                          onDragOver={(e) => handleDragOver(e, link, index)}
+                          onDragLeave={handleDragLeave}
+                          onDrop={handleDrop}
+                          onDragEnd={handleDragEnd}
+                          className={`flex items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-all duration-200 cursor-move ${
+                            isDragging ? 'opacity-50 scale-95' : ''
+                          } ${
+                            isDragOver ? 'ring-2 ring-primary/50 ring-offset-2' : ''
+                          }`}
+                        >
+                          <GripVertical className="h-5 w-5 text-muted-foreground cursor-move" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-medium truncate">{link.title}</h3>
+                              {link.type === "external" && <ExternalLink className="h-4 w-4 text-muted-foreground" />}
+                              {!link.isActive && <span className="text-xs bg-muted px-2 py-1 rounded">Inactivo</span>}
+                            </div>
+                            {link.description && (
+                              <p className="text-sm text-muted-foreground truncate">{link.description}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground truncate">{link.url}</p>
                           </div>
-                          {link.description && (
-                            <p className="text-sm text-muted-foreground truncate">{link.description}</p>
-                          )}
-                          <p className="text-xs text-muted-foreground truncate">{link.url}</p>
+                          <div className="flex gap-2">
+                            <Button variant="ghost" size="sm" onClick={() => openLinkDialog(link)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleDeleteLink(link.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => openLinkDialog(link)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDeleteLink(link.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </CardContent>
