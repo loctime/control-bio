@@ -7,6 +7,7 @@ Una aplicación moderna de enlaces en bio (similar a Linktree) construida con Ne
 - 🔐 Autenticación de usuarios con Firebase Auth
 - 🎨 Personalización avanzada de temas (colores personalizados)
 - 🔗 Gestión completa de enlaces (crear, editar, eliminar, reordenar)
+- 📁 **Gestión de archivos con ControlFile** (subir, descargar, compartir)
 - 👤 Páginas de perfil públicas personalizadas
 - 📱 Diseño mobile-first y responsive
 - 🌙 Soporte para modo oscuro
@@ -68,13 +69,17 @@ service cloud.firestore {
 Crea un archivo `.env.local` en la raíz del proyecto con las siguientes variables:
 
 \`\`\`env
+# Firebase Auth Central (compartido con ControlFile)
 NEXT_PUBLIC_FIREBASE_API_KEY=tu_api_key
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=tu_proyecto.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=tu_proyecto_id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=tu_proyecto.appspot.com
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=tu_sender_id
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=controlstorage-eb796.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=controlstorage-eb796
 NEXT_PUBLIC_FIREBASE_APP_ID=tu_app_id
+
+# Backend ControlFile
+NEXT_PUBLIC_BACKEND_URL=https://controlfile.onrender.com
 \`\`\`
+
+> **Nota**: ControlBio usa Firebase Auth Central compartido con ControlFile para la gestión de archivos.
 
 ## Instalación
 
@@ -231,6 +236,32 @@ Asegúrate de:
 
 MIT
 
+## 📁 Integración con ControlFile
+
+ControlBio incluye integración completa con ControlFile para gestión de archivos:
+
+### Funcionalidades de Archivos
+- 📤 **Subir archivos** a carpeta "ControlBio" en el taskbar
+- 📁 **Organizar en subcarpetas** para mejor estructura
+- 📥 **Descargar archivos** con URLs temporales (5 min)
+- 🔗 **Compartir archivos** con enlaces públicos (24h)
+- 🗑️ **Eliminar archivos** permanentemente
+
+### Documentación Técnica
+- [Integración ControlFile](docs/CONTROLFILE_INTEGRATION.md) - Documentación completa
+- [Guía de Desarrollador](docs/DEVELOPER_GUIDE.md) - Para desarrolladores
+- [API Reference ControlFile](controlfile/API_REFERENCE.md) - Referencia de API
+
+### Configuración Requerida
+1. **Firebase Auth Central**: Usuarios autenticados en proyecto compartido
+2. **Claims de acceso**: Usuarios deben tener `allowedApps` claim
+3. **CORS configurado**: Dominio agregado a `ALLOWED_ORIGINS`
+4. **Backend ControlFile**: API funcionando en `https://controlfile.onrender.com`
+
 ## Soporte
 
 Para problemas o preguntas, abre un issue en el repositorio.
+
+### Soporte ControlFile
+- **Documentación**: Ver carpeta `controlfile/`
+- **Admin ControlFile**: Para configuración CORS y claims

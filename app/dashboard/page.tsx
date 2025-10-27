@@ -39,6 +39,12 @@ import { Switch } from "@/components/ui/switch"
 import type { UserProfile, Link } from "@/types"
 import { ExternalLink, GripVertical, Pencil, Plus, Trash2, Eye, Copy, FolderOpen, Upload, X } from "lucide-react"
 import { ControlBioFileManager } from "@/components/ControlBioFileManager"
+import { 
+  getControlBioFolder, 
+  uploadFile, 
+  getDownloadUrl, 
+  ensureFolderExists 
+} from "@/lib/controlfile-client"
 
 export default function DashboardPage() {
   const { user, loading: authLoading, signOut } = useAuth()
@@ -54,7 +60,6 @@ export default function DashboardPage() {
   const [editingDisplayName, setEditingDisplayName] = useState(false)
   const [editingUsername, setEditingUsername] = useState(false)
   const [editingBio, setEditingBio] = useState(false)
-  const [editingAvatar, setEditingAvatar] = useState(false)
 
   // Form state for profile
   const [displayName, setDisplayName] = useState("")
@@ -81,6 +86,7 @@ export default function DashboardPage() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string>("")
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [editingAvatar, setEditingAvatar] = useState(false)
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -93,6 +99,9 @@ export default function DashboardPage() {
       if (!user) return
 
       try {
+        console.log("Loading profile for user:", user.uid)
+        console.log("User auth token:", await user.getIdToken())
+        
         const profileRef = doc(db, "apps/controlbio/users", user.uid)
         const profileSnap = await getDoc(profileRef)
 
@@ -151,15 +160,25 @@ export default function DashboardPage() {
         }
 
         // Load links
+        console.log("Loading links for user:", user.uid)
         const linksQuery = query(collection(db, "apps/controlbio/links"), where("userId", "==", user.uid), orderBy("order", "asc"))
         const linksSnap = await getDocs(linksQuery)
         const linksData = linksSnap.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as Link)
         setLinks(linksData)
+        console.log("Loaded links:", linksData)
       } catch (error) {
         console.error("Error loading profile:", error)
+        const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
+        const errorCode = error && typeof error === 'object' && 'code' in error ? error.code : 'unknown'
+        console.error("Error details:", {
+          code: errorCode,
+          message: errorMessage,
+          user: user?.uid,
+          authenticated: !!user
+        })
         toast({
           title: "Error",
-          description: "No se pudo cargar el perfil",
+          description: `No se pudo cargar el perfil: ${errorMessage}`,
           variant: "destructive",
         })
       } finally {
@@ -175,25 +194,33 @@ export default function DashboardPage() {
 
     setUploadingAvatar(true)
     try {
-      // En una implementación real, aquí subirías el archivo a Firebase Storage
-      // Por ahora, creamos una URL temporal para la vista previa
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const result = e.target?.result as string
-        setAvatarPreview(result)
-        setAvatarUrl(result) // Usar la URL temporal por ahora
-      }
-      reader.readAsDataURL(file)
+      // 1. Obtener o crear la carpeta ControlBio
+      const controlBioFolderId = await getControlBioFolder()
+      
+      // 2. Crear subcarpeta "Fotos de perfil" si no existe
+      const fotosPerfilFolderId = await ensureFolderExists("Fotos de perfil", controlBioFolderId)
+      
+      // 3. Subir archivo a ControlFile
+      const fileId = await uploadFile(file, fotosPerfilFolderId, (progress) => {
+        console.log(`Subiendo avatar: ${progress}%`)
+      })
+      
+      // 4. Obtener URL de descarga
+      const downloadUrl = await getDownloadUrl(fileId)
+      
+      // 5. Actualizar estado local
+      setAvatarPreview(downloadUrl)
+      setAvatarUrl(downloadUrl)
       
       toast({
         title: "Avatar actualizado",
-        description: "La imagen se ha cargado correctamente",
+        description: "La imagen se ha subido correctamente a ControlFile",
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error uploading avatar:", error)
       toast({
         title: "Error",
-        description: "No se pudo subir la imagen",
+        description: "No se pudo subir la imagen a ControlFile",
         variant: "destructive",
       })
     } finally {
@@ -224,7 +251,6 @@ export default function DashboardPage() {
       setEditingDisplayName(false)
       setEditingUsername(false)
       setEditingBio(false)
-      setEditingAvatar(false)
       setAvatarPreview("")
       setAvatarFile(null)
 
@@ -259,7 +285,6 @@ export default function DashboardPage() {
         setAvatarUrl(profile.avatarUrl)
         setAvatarPreview("")
         setAvatarFile(null)
-        setEditingAvatar(false)
       }
     }
   }
@@ -288,7 +313,7 @@ export default function DashboardPage() {
         title: "Tema actualizado",
         description: "Tu personalización se ha guardado correctamente",
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving theme:", error)
       toast({
         title: "Error",
@@ -300,21 +325,6 @@ export default function DashboardPage() {
     }
   }
 
-  const handleAvatarClick = () => {
-    if (editingAvatar) {
-      const input = document.createElement('input')
-      input.type = 'file'
-      input.accept = 'image/*'
-      input.onchange = (e) => {
-        const file = (e.target as HTMLInputElement).files?.[0]
-        if (file) {
-          setAvatarFile(file)
-          handleAvatarUpload(file)
-        }
-      }
-      input.click()
-    }
-  }
 
   const openLinkDialog = (link?: Link) => {
     if (link) {
@@ -336,9 +346,20 @@ export default function DashboardPage() {
   }
 
   const handleSaveLink = async () => {
-    if (!user) return
+    if (!user) {
+      console.error("No user authenticated")
+      toast({
+        title: "Error",
+        description: "No hay usuario autenticado",
+        variant: "destructive",
+      })
+      return
+    }
 
     try {
+      console.log("Saving link for user:", user.uid)
+      console.log("User auth token:", await user.getIdToken())
+      
       if (editingLink) {
         // Update existing link
         const linkRef = doc(db, "apps/controlbio/links", editingLink.id)
@@ -385,6 +406,7 @@ export default function DashboardPage() {
           updatedAt: new Date(),
         }
 
+        console.log("Creating new link:", newLink)
         const docRef = await addDoc(collection(db, "apps/controlbio/links"), newLink)
         setLinks([...links, { ...newLink, id: docRef.id } as Link])
 
@@ -397,9 +419,17 @@ export default function DashboardPage() {
       setLinkDialogOpen(false)
     } catch (error) {
       console.error("Error saving link:", error)
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
+      const errorCode = error && typeof error === 'object' && 'code' in error ? error.code : 'unknown'
+      console.error("Error details:", {
+        code: errorCode,
+        message: errorMessage,
+        user: user?.uid,
+        authenticated: !!user
+      })
       toast({
         title: "Error",
-        description: "No se pudo guardar el enlace",
+        description: `No se pudo guardar el enlace: ${errorMessage}`,
         variant: "destructive",
       })
     }
@@ -414,7 +444,7 @@ export default function DashboardPage() {
         title: "Enlace eliminado",
         description: "El enlace se ha eliminado correctamente",
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting link:", error)
       toast({
         title: "Error",
@@ -497,66 +527,82 @@ export default function DashboardPage() {
                     color: profile?.theme?.textColor || "#f5f5f5"
                   }}
                 >
-                  {/* Avatar editable */}
-                  <div className="relative group">
-                    <Avatar 
-                      className={`h-24 w-24 mx-auto ${editingAvatar ? 'cursor-pointer' : ''}`}
-                      onClick={handleAvatarClick}
-                    >
-                      <AvatarImage 
-                        src={editingAvatar ? (avatarPreview || avatarUrl) : profile?.avatarUrl} 
-                        alt={profile?.displayName} 
-                      />
-                      <AvatarFallback className="text-2xl">
-                        {profile?.displayName?.charAt(0)?.toUpperCase() || "U"}
-                      </AvatarFallback>
-                    </Avatar>
-                    {editingAvatar && (
-                      <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                        {uploadingAvatar ? (
-                          <Spinner className="h-6 w-6 text-white" />
-                        ) : (
-                          <Upload className="h-6 w-6 text-white" />
-                        )}
+                  {/* Avatar y controles de edición */}
+                  <div className="flex items-center gap-4 justify-center">
+                    {/* Avatar */}
+                    <div className="relative">
+                      <Avatar className="h-24 w-24">
+                        <AvatarImage 
+                          src={avatarPreview || profile?.avatarUrl} 
+                          alt={profile?.displayName} 
+                        />
+                        <AvatarFallback className="text-2xl">
+                          {profile?.displayName?.charAt(0)?.toUpperCase() || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                    </div>
+                    
+                    {/* Controles de edición */}
+                    <div className="space-y-3">
+                      {/* Botón de subir archivo */}
+                      <div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              setAvatarFile(file)
+                              handleAvatarUpload(file)
+                            }
+                          }}
+                          className="hidden"
+                          id="avatar-upload"
+                        />
+                        <label
+                          htmlFor="avatar-upload"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors cursor-pointer"
+                        >
+                          {uploadingAvatar ? (
+                            <Spinner className="h-4 w-4" />
+                          ) : (
+                            <Upload className="h-4 w-4" />
+                          )}
+                          Subir imagen
+                        </label>
                       </div>
-                    )}
-                    {editingAvatar && avatarPreview && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setAvatarPreview("")
-                          setAvatarFile(null)
-                          setAvatarUrl(profile?.avatarUrl || "")
-                        }}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setEditingAvatar(!editingAvatar)}
-                      className="absolute -bottom-1 -right-1 bg-blue-500 text-white rounded-full p-1.5 hover:bg-blue-600 transition-colors shadow-lg"
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </button>
-                    {editingAvatar && (
-                      <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 flex gap-1">
-                        <button
+                      
+                      {/* Campo de URL */}
+                      <div>
+                        <Input
+                          type="url"
+                          placeholder="O pega una URL de imagen"
+                          value={avatarUrl}
+                          onChange={(e) => setAvatarUrl(e.target.value)}
+                          className="bg-transparent border-2 border-white/20 text-white placeholder-white/60 focus:border-white/40 focus:ring-0 w-64"
+                        />
+                      </div>
+                      
+                      {/* Botones de acción */}
+                      <div className="flex gap-2">
+                        <Button
                           onClick={() => handleSaveField('avatar')}
                           disabled={saving}
-                          className="bg-green-500 text-white rounded px-2 py-1 text-xs hover:bg-green-600 transition-colors"
+                          size="sm"
+                          className="bg-green-500 hover:bg-green-600"
                         >
-                          ✓
-                        </button>
-                        <button
+                          {saving ? "Guardando..." : "Guardar"}
+                        </Button>
+                        <Button
                           onClick={() => handleCancelField('avatar')}
                           disabled={saving}
-                          className="bg-red-500 text-white rounded px-2 py-1 text-xs hover:bg-red-600 transition-colors"
+                          variant="outline"
+                          size="sm"
                         >
-                          ✕
-                        </button>
+                          Cancelar
+                        </Button>
                       </div>
-                    )}
+                    </div>
                   </div>
                   
                   {/* Nombre y usuario juntos */}
@@ -700,20 +746,6 @@ export default function DashboardPage() {
                     )}
                   </div>
 
-                  {/* URL del avatar editable - solo visible cuando se edita el avatar */}
-                  {editingAvatar && (
-                    <div className="max-w-md mx-auto">
-                      <Label htmlFor="avatarUrl" className="text-white/80 text-sm">O pega una URL de imagen</Label>
-                      <Input
-                        id="avatarUrl"
-                        type="url"
-                        placeholder="https://ejemplo.com/imagen.jpg"
-                        value={avatarUrl}
-                        onChange={(e) => setAvatarUrl(e.target.value)}
-                        className="mt-1 bg-transparent border-2 border-white/20 text-white placeholder-white/60 focus:border-white/40 focus:ring-0"
-                      />
-                    </div>
-                  )}
                   
                   {/* Enlaces */}
                   {links.filter(link => link.isActive).length > 0 && (
