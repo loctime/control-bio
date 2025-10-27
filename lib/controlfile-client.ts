@@ -12,15 +12,56 @@ async function getToken() {
 export async function getControlBioFolder(): Promise<string> {
   const token = await getToken();
   
-  const response = await fetch(
-    `${BACKEND_URL}/api/folders/root?name=ControlBio&pin=1`,
-    {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`
+  try {
+    // Primero intentar con el endpoint root (método preferido)
+    const response = await fetch(
+      `${BACKEND_URL}/api/folders/root?name=ControlBio&pin=1`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       }
+    );
+    
+    if (response.ok) {
+      const result = await response.json();
+      return result.folderId;
     }
-  );
+  } catch (error) {
+    console.warn('Error con endpoint root, intentando método alternativo:', error);
+  }
+  
+  // Verificar si la carpeta ya existe
+  try {
+    const existingFolders = await listFiles(null);
+    const existingFolder = existingFolders?.find(
+      folder => folder.type === 'folder' && folder.name === 'ControlBio'
+    );
+    
+    if (existingFolder) {
+      console.log('✅ Carpeta ControlBio ya existe:', existingFolder.id);
+      return existingFolder.id;
+    }
+  } catch (error) {
+    console.warn('Error verificando carpetas existentes:', error);
+  }
+  
+  // Si no existe, crear la carpeta con source: taskbar
+  const response = await fetch(`${BACKEND_URL}/api/folders/create`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: 'ControlBio',
+      parentId: null,
+      source: 'taskbar',  // ← Esto es clave para que aparezca en taskbar
+      icon: 'Briefcase',
+      color: 'text-purple-600'
+    }),
+  });
   
   if (!response.ok) {
     const error = await response.json();
@@ -28,6 +69,7 @@ export async function getControlBioFolder(): Promise<string> {
   }
   
   const result = await response.json();
+  console.log('✅ Carpeta ControlBio creada con source: taskbar');
   return result.folderId;
 }
 

@@ -37,7 +37,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import type { UserProfile, Link } from "@/types"
-import { ExternalLink, GripVertical, Pencil, Plus, Trash2, Eye, Copy, FolderOpen } from "lucide-react"
+import { ExternalLink, GripVertical, Pencil, Plus, Trash2, Eye, Copy, FolderOpen, Upload, X } from "lucide-react"
 import { ControlBioFileManager } from "@/components/ControlBioFileManager"
 
 export default function DashboardPage() {
@@ -49,6 +49,12 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
+  
+  // Individual field editing states
+  const [editingDisplayName, setEditingDisplayName] = useState(false)
+  const [editingUsername, setEditingUsername] = useState(false)
+  const [editingBio, setEditingBio] = useState(false)
+  const [editingAvatar, setEditingAvatar] = useState(false)
 
   // Form state for profile
   const [displayName, setDisplayName] = useState("")
@@ -70,6 +76,11 @@ export default function DashboardPage() {
   const [linkDescription, setLinkDescription] = useState("")
   const [linkType, setLinkType] = useState<"external" | "internal">("external")
   const [linkActive, setLinkActive] = useState(true)
+
+  // Avatar upload state
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string>("")
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -159,7 +170,38 @@ export default function DashboardPage() {
     loadProfile()
   }, [user, toast])
 
-  const handleSaveProfile = async () => {
+  const handleAvatarUpload = async (file: File) => {
+    if (!user) return
+
+    setUploadingAvatar(true)
+    try {
+      // En una implementación real, aquí subirías el archivo a Firebase Storage
+      // Por ahora, creamos una URL temporal para la vista previa
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const result = e.target?.result as string
+        setAvatarPreview(result)
+        setAvatarUrl(result) // Usar la URL temporal por ahora
+      }
+      reader.readAsDataURL(file)
+      
+      toast({
+        title: "Avatar actualizado",
+        description: "La imagen se ha cargado correctamente",
+      })
+    } catch (error) {
+      console.error("Error uploading avatar:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo subir la imagen",
+        variant: "destructive",
+      })
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
+  const handleSaveField = async (field: string) => {
     if (!user || !profile) return
 
     setSaving(true)
@@ -167,31 +209,58 @@ export default function DashboardPage() {
       const updatedProfile: UserProfile = {
         ...profile,
         uid: user.uid,
-        displayName,
-        username,
-        bio,
-        avatarUrl,
+        displayName: field === 'displayName' ? displayName : profile.displayName,
+        username: field === 'username' ? username : profile.username,
+        bio: field === 'bio' ? bio : profile.bio,
+        avatarUrl: field === 'avatar' ? (avatarPreview || avatarUrl) : profile.avatarUrl,
         updatedAt: new Date(),
       }
 
       const profileRef = doc(db, "apps/controlbio/users", user.uid)
       await setDoc(profileRef, updatedProfile)
       setProfile(updatedProfile)
-      setEditing(false)
+      
+      // Reset editing states
+      setEditingDisplayName(false)
+      setEditingUsername(false)
+      setEditingBio(false)
+      setEditingAvatar(false)
+      setAvatarPreview("")
+      setAvatarFile(null)
 
       toast({
-        title: "Perfil actualizado",
-        description: "Tus cambios se han guardado correctamente",
+        title: "Campo actualizado",
+        description: "El cambio se ha guardado correctamente",
       })
     } catch (error) {
-      console.error("Error saving profile:", error)
+      console.error("Error saving field:", error)
       toast({
         title: "Error",
-        description: "No se pudo guardar el perfil",
+        description: "No se pudo guardar el cambio",
         variant: "destructive",
       })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleCancelField = (field: string) => {
+    if (profile) {
+      if (field === 'displayName') {
+        setDisplayName(profile.displayName)
+        setEditingDisplayName(false)
+      } else if (field === 'username') {
+        setUsername(profile.username)
+        setEditingUsername(false)
+      } else if (field === 'bio') {
+        setBio(profile.bio)
+        setEditingBio(false)
+      } else if (field === 'avatar') {
+        setAvatarUrl(profile.avatarUrl)
+        setAvatarPreview("")
+        setAvatarFile(null)
+        setEditingAvatar(false)
+      }
     }
   }
 
@@ -231,14 +300,20 @@ export default function DashboardPage() {
     }
   }
 
-  const handleCancel = () => {
-    if (profile) {
-      setDisplayName(profile.displayName)
-      setUsername(profile.username)
-      setBio(profile.bio)
-      setAvatarUrl(profile.avatarUrl)
+  const handleAvatarClick = () => {
+    if (editingAvatar) {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = 'image/*'
+      input.onchange = (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0]
+        if (file) {
+          setAvatarFile(file)
+          handleAvatarUpload(file)
+        }
+      }
+      input.click()
     }
-    setEditing(false)
   }
 
   const openLinkDialog = (link?: Link) => {
@@ -394,9 +469,9 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
-        <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+      <main className="container mx-auto px-4 max-w-4xl">
+        <Tabs defaultValue="profile" className="space-y-0">
+          <TabsList className="grid w-full grid-cols-5 mt-4">
             <TabsTrigger value="profile">Perfil</TabsTrigger>
             <TabsTrigger value="links">Enlaces</TabsTrigger>
             <TabsTrigger value="files">Archivos</TabsTrigger>
@@ -404,116 +479,295 @@ export default function DashboardPage() {
             <TabsTrigger value="security">Seguridad</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="profile" className="space-y-6">
+          <TabsContent value="profile" className="space-y-6 mt-0">
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle>Mi Perfil</CardTitle>
-                    <CardDescription>Gestiona tu información personal</CardDescription>
+                    <CardDescription>Edita cada elemento individualmente</CardDescription>
                   </div>
-                  {!editing && <Button onClick={() => setEditing(true)}>Editar perfil</Button>}
                 </div>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex items-center gap-6">
-                  <Avatar className="h-24 w-24">
-                    <AvatarImage src={editing ? avatarUrl : profile.avatarUrl} alt={profile.displayName} />
-                    <AvatarFallback className="text-2xl">
-                      {profile.displayName?.charAt(0)?.toUpperCase() || "U"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    {editing ? (
+              <CardContent>
+                <div 
+                  className="rounded-lg p-8 text-center space-y-6 min-h-[500px] flex flex-col justify-center relative"
+                  style={{ 
+                    backgroundColor: profile?.theme?.backgroundColor || "#1f1f1f",
+                    color: profile?.theme?.textColor || "#f5f5f5"
+                  }}
+                >
+                  {/* Avatar editable */}
+                  <div className="relative group">
+                    <Avatar 
+                      className={`h-24 w-24 mx-auto ${editingAvatar ? 'cursor-pointer' : ''}`}
+                      onClick={handleAvatarClick}
+                    >
+                      <AvatarImage 
+                        src={editingAvatar ? (avatarPreview || avatarUrl) : profile?.avatarUrl} 
+                        alt={profile?.displayName} 
+                      />
+                      <AvatarFallback className="text-2xl">
+                        {profile?.displayName?.charAt(0)?.toUpperCase() || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                    {editingAvatar && (
+                      <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                        {uploadingAvatar ? (
+                          <Spinner className="h-6 w-6 text-white" />
+                        ) : (
+                          <Upload className="h-6 w-6 text-white" />
+                        )}
+                      </div>
+                    )}
+                    {editingAvatar && avatarPreview && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setAvatarPreview("")
+                          setAvatarFile(null)
+                          setAvatarUrl(profile?.avatarUrl || "")
+                        }}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setEditingAvatar(!editingAvatar)}
+                      className="absolute -bottom-1 -right-1 bg-blue-500 text-white rounded-full p-1.5 hover:bg-blue-600 transition-colors shadow-lg"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    {editingAvatar && (
+                      <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 flex gap-1">
+                        <button
+                          onClick={() => handleSaveField('avatar')}
+                          disabled={saving}
+                          className="bg-green-500 text-white rounded px-2 py-1 text-xs hover:bg-green-600 transition-colors"
+                        >
+                          ✓
+                        </button>
+                        <button
+                          onClick={() => handleCancelField('avatar')}
+                          disabled={saving}
+                          className="bg-red-500 text-white rounded px-2 py-1 text-xs hover:bg-red-600 transition-colors"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Nombre y usuario juntos */}
+                  <div className="space-y-2">
+                    {/* Nombre editable */}
+                    <div className="relative group">
+                      {editingDisplayName ? (
+                        <div className="space-y-2">
+                          <Input
+                            value={displayName}
+                            onChange={(e) => setDisplayName(e.target.value)}
+                            placeholder="Tu nombre"
+                            className="text-2xl font-bold text-center bg-transparent border-2 border-white/20 text-white placeholder-white/60 focus:border-white/40 focus:ring-0"
+                            autoFocus
+                          />
+                          <div className="flex justify-center gap-1">
+                            <button
+                              onClick={() => handleSaveField('displayName')}
+                              disabled={saving}
+                              className="bg-green-500 text-white rounded px-2 py-1 text-xs hover:bg-green-600 transition-colors"
+                            >
+                              ✓
+                            </button>
+                            <button
+                              onClick={() => handleCancelField('displayName')}
+                              disabled={saving}
+                              className="bg-red-500 text-white rounded px-2 py-1 text-xs hover:bg-red-600 transition-colors"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="relative inline-block">
+                          <h1 className="text-2xl font-bold mb-2">{profile?.displayName || "Usuario"}</h1>
+                          <button
+                            onClick={() => {
+                              setEditingDisplayName(true)
+                              setDisplayName(profile?.displayName || "")
+                            }}
+                            className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-blue-500 text-white rounded-full p-1 hover:bg-blue-600"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Username editable */}
+                    <div className="relative group">
+                      {editingUsername ? (
+                        <div className="space-y-2">
+                          <div className="relative">
+                            <Input
+                              value={username}
+                              onChange={(e) => setUsername(e.target.value)}
+                              placeholder="tunombre"
+                              className="text-lg text-center bg-transparent border-2 border-white/20 text-white/80 placeholder-white/40 focus:border-white/40 focus:ring-0 pl-6"
+                              autoFocus
+                            />
+                            <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-white/40">@</span>
+                          </div>
+                          <div className="flex justify-center gap-1">
+                            <button
+                              onClick={() => handleSaveField('username')}
+                              disabled={saving}
+                              className="bg-green-500 text-white rounded px-2 py-1 text-xs hover:bg-green-600 transition-colors"
+                            >
+                              ✓
+                            </button>
+                            <button
+                              onClick={() => handleCancelField('username')}
+                              disabled={saving}
+                              className="bg-red-500 text-white rounded px-2 py-1 text-xs hover:bg-red-600 transition-colors"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="relative inline-block">
+                          <p className="text-lg opacity-80">@{profile?.username}</p>
+                          <button
+                            onClick={() => {
+                              setEditingUsername(true)
+                              setUsername(profile?.username || "")
+                            }}
+                            className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-blue-500 text-white rounded-full p-1 hover:bg-blue-600"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Biografía editable */}
+                  <div className="max-w-md mx-auto relative group">
+                    {editingBio ? (
                       <div className="space-y-2">
-                        <Label htmlFor="avatarUrl">URL de la imagen de perfil</Label>
-                        <Input
-                          id="avatarUrl"
-                          type="url"
-                          placeholder="https://ejemplo.com/imagen.jpg"
-                          value={avatarUrl}
-                          onChange={(e) => setAvatarUrl(e.target.value)}
+                        <Textarea
+                          value={bio}
+                          onChange={(e) => setBio(e.target.value)}
+                          placeholder="Cuéntanos sobre ti..."
+                          rows={3}
+                          className="text-sm bg-transparent border-2 border-white/20 text-white/90 placeholder-white/60 resize-none focus:border-white/40 focus:ring-0"
+                          autoFocus
                         />
+                        <div className="flex justify-center gap-1">
+                          <button
+                            onClick={() => handleSaveField('bio')}
+                            disabled={saving}
+                            className="bg-green-500 text-white rounded px-2 py-1 text-xs hover:bg-green-600 transition-colors"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={() => handleCancelField('bio')}
+                            disabled={saving}
+                            className="bg-red-500 text-white rounded px-2 py-1 text-xs hover:bg-red-600 transition-colors"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </div>
                     ) : (
-                      <div>
-                        <h2 className="text-2xl font-bold">{profile.displayName}</h2>
-                        <p className="text-muted-foreground">@{profile.username}</p>
+                      <div className="relative">
+                        <p className="text-sm opacity-90 whitespace-pre-wrap">
+                          {profile?.bio || "No hay biografía"}
+                        </p>
+                        <button
+                          onClick={() => {
+                            setEditingBio(true)
+                            setBio(profile?.bio || "")
+                          }}
+                          className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-blue-500 text-white rounded-full p-1 hover:bg-blue-600"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
                       </div>
                     )}
+                  </div>
+
+                  {/* URL del avatar editable - solo visible cuando se edita el avatar */}
+                  {editingAvatar && (
+                    <div className="max-w-md mx-auto">
+                      <Label htmlFor="avatarUrl" className="text-white/80 text-sm">O pega una URL de imagen</Label>
+                      <Input
+                        id="avatarUrl"
+                        type="url"
+                        placeholder="https://ejemplo.com/imagen.jpg"
+                        value={avatarUrl}
+                        onChange={(e) => setAvatarUrl(e.target.value)}
+                        className="mt-1 bg-transparent border-2 border-white/20 text-white placeholder-white/60 focus:border-white/40 focus:ring-0"
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Enlaces */}
+                  {links.filter(link => link.isActive).length > 0 && (
+                    <div className="space-y-3 max-w-sm mx-auto">
+                      {links
+                        .filter(link => link.isActive)
+                        .map((link) => (
+                          <a
+                            key={link.id}
+                            href={link.url}
+                            target={link.type === "external" ? "_blank" : "_self"}
+                            rel={link.type === "external" ? "noopener noreferrer" : ""}
+                            className="block w-full p-4 rounded-lg font-medium transition-opacity hover:opacity-90"
+                            style={{ 
+                              backgroundColor: profile?.theme?.buttonColor || "#ff6b35",
+                              color: profile?.theme?.buttonTextColor || "#ffffff"
+                            }}
+                          >
+                            <div className="flex items-center justify-center gap-2">
+                              <span>{link.title}</span>
+                              {link.type === "external" && <ExternalLink className="h-4 w-4" />}
+                            </div>
+                            {link.description && (
+                              <p className="text-xs opacity-80 mt-1">{link.description}</p>
+                            )}
+                          </a>
+                        ))}
+                    </div>
+                  )}
+
+                  {/* Información adicional */}
+                  <div className="mt-8 p-4 bg-black/20 rounded-lg max-w-md mx-auto">
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="opacity-80">Email:</span>
+                        <span className="opacity-60">{user.email}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="opacity-80">URL del perfil:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="opacity-60">@{profile?.username}</span>
+                          <Button variant="ghost" size="sm" onClick={copyProfileUrl} className="h-6 w-6 p-0">
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="displayName">Nombre para mostrar</Label>
-                    {editing ? (
-                      <Input
-                        id="displayName"
-                        value={displayName}
-                        onChange={(e) => setDisplayName(e.target.value)}
-                        placeholder="Tu nombre"
-                      />
-                    ) : (
-                      <p className="text-foreground">{profile.displayName || "No especificado"}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="username">Nombre de usuario</Label>
-                    {editing ? (
-                      <Input
-                        id="username"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        placeholder="tunombre"
-                      />
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <p className="text-foreground">@{profile.username}</p>
-                        <Button variant="ghost" size="sm" onClick={copyProfileUrl}>
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Correo electrónico</Label>
-                    <p className="text-muted-foreground">{user.email}</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="bio">Biografía</Label>
-                    {editing ? (
-                      <Textarea
-                        id="bio"
-                        value={bio}
-                        onChange={(e) => setBio(e.target.value)}
-                        placeholder="Cuéntanos sobre ti..."
-                        rows={4}
-                      />
-                    ) : (
-                      <p className="text-foreground whitespace-pre-wrap">{profile.bio || "No hay biografía"}</p>
-                    )}
-                  </div>
-                </div>
-
-                {editing && (
-                  <div className="flex gap-3 pt-4">
-                    <Button onClick={handleSaveProfile} disabled={saving}>
-                      {saving ? "Guardando..." : "Guardar cambios"}
-                    </Button>
-                    <Button variant="outline" onClick={handleCancel} disabled={saving}>
-                      Cancelar
-                    </Button>
-                  </div>
-                )}
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="links" className="space-y-6">
+          <TabsContent value="links" className="space-y-6 mt-0">
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -571,11 +825,11 @@ export default function DashboardPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="files" className="space-y-6">
+          <TabsContent value="files" className="space-y-6 mt-0">
             <ControlBioFileManager />
           </TabsContent>
 
-          <TabsContent value="theme" className="space-y-6">
+          <TabsContent value="theme" className="space-y-6 mt-0">
             <Card>
               <CardHeader>
                 <CardTitle>Personalización</CardTitle>
@@ -682,7 +936,7 @@ export default function DashboardPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="security" className="space-y-6">
+          <TabsContent value="security" className="space-y-6 mt-0">
             <Card>
               <CardHeader>
                 <CardTitle>Seguridad</CardTitle>
