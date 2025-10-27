@@ -27,7 +27,7 @@ export async function getControlBioFolder(): Promise<string> {
     console.warn('Error verificando carpetas existentes:', error);
   }
   
-  // Crear la carpeta usando el endpoint create con appCode
+  // Crear la carpeta (se creará con appCode: 'controlfile')
   console.log('📁 Creando carpeta ControlBio...');
   
   const response = await fetch(`${BACKEND_URL}/api/folders/create`, {
@@ -40,8 +40,8 @@ export async function getControlBioFolder(): Promise<string> {
       name: 'ControlBio',
       parentId: null,
       icon: 'Briefcase',
-      color: 'text-purple-600',
-      appCode: 'controlbio' // ✅ Intentar con appCode
+      color: 'text-purple-600'
+      // No enviar appCode - se creará como 'controlfile'
     }),
   });
   
@@ -53,12 +53,12 @@ export async function getControlBioFolder(): Promise<string> {
   const result = await response.json();
   console.log('✅ Carpeta ControlBio creada:', result.folderId);
   
-  // Intentar agregar la carpeta al taskbar
+  // ✅ AGREGAR AL TASKBAR MANUALMENTE
   try {
     await addToTaskbar(result.folderId);
     console.log('✅ Carpeta agregada al taskbar');
   } catch (error) {
-    console.warn('⚠️ No se pudo agregar al taskbar, pero la carpeta funciona:', error);
+    console.warn('⚠️ No se pudo agregar al taskbar:', error);
   }
   
   return result.folderId;
