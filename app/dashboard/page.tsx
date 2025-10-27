@@ -169,7 +169,7 @@ export default function DashboardPage() {
         updatedAt: new Date(),
       }
 
-      const profileRef = doc(db, "users", user.uid)
+      const profileRef = doc(db, "apps/controlbio/users", user.uid)
       await setDoc(profileRef, updatedProfile)
       setProfile(updatedProfile)
       setEditing(false)
@@ -206,7 +206,7 @@ export default function DashboardPage() {
         updatedAt: new Date(),
       }
 
-      const profileRef = doc(db, "users", user.uid)
+      const profileRef = doc(db, "apps/controlbio/users", user.uid)
       await setDoc(profileRef, updatedProfile)
       setProfile(updatedProfile)
 
