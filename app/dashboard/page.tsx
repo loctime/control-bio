@@ -577,11 +577,11 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle>Mi Perfil</CardTitle>
-                    <CardDescription>Edita cada elemento individualmente</CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
+                {/* Vista previa del perfil con controles integrados */}
                 <div 
                   className="rounded-lg p-8 text-center space-y-6 min-h-[500px] flex flex-col justify-center relative"
                   style={{ 
@@ -589,10 +589,9 @@ export default function DashboardPage() {
                     color: profile?.theme?.textColor || "#f5f5f5"
                   }}
                 >
-                  {/* Avatar y controles de edición */}
-                  <div className="flex items-center gap-4 justify-center">
-                    {/* Avatar */}
-                    <div className="relative">
+                  {/* Avatar con botones pequeños */}
+                  <div className="flex justify-center">
+                    <div className="relative group">
                       <Avatar className="h-24 w-24">
                         <AvatarImage 
                           src={avatarPreview || profile?.avatarUrl} 
@@ -602,80 +601,52 @@ export default function DashboardPage() {
                           {profile?.displayName?.charAt(0)?.toUpperCase() || "U"}
                         </AvatarFallback>
                       </Avatar>
-                    </div>
-                    
-                    {/* Controles de edición */}
-                    <div className="space-y-3">
-                      {/* Botón de subir archivo */}
-                      <div>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0]
-                            if (file) {
-                              setAvatarFile(file)
-                              handleAvatarUpload(file)
-                            }
-                          }}
-                          className="hidden"
-                          id="avatar-upload"
-                        />
-                        <label
-                          htmlFor="avatar-upload"
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors cursor-pointer"
-                        >
-                          {uploadingAvatar ? (
-                            <Spinner className="h-4 w-4" />
-                          ) : (
-                            <Upload className="h-4 w-4" />
-                          )}
-                          Subir imagen
-                        </label>
-                      </div>
                       
-                      {/* Campo de URL */}
-                      <div className="flex gap-2">
-                        <Input
-                          type="url"
-                          placeholder="O pega una URL de imagen"
-                          value={avatarUrl}
-                          onChange={(e) => setAvatarUrl(e.target.value)}
-                          className="bg-transparent border-2 border-white/20 text-white placeholder-white/60 focus:border-white/40 focus:ring-0 w-48"
-                        />
-                        <Button
+                      {/* Botones pequeños junto al avatar */}
+                      <div className="absolute -right-2 -top-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {/* Botón Subir */}
+                        <div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (file) {
+                                setAvatarFile(file)
+                                handleAvatarUpload(file)
+                              }
+                            }}
+                            className="hidden"
+                            id="avatar-upload"
+                          />
+                          <label
+                            htmlFor="avatar-upload"
+                            className="inline-flex items-center justify-center w-8 h-8 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors cursor-pointer text-xs"
+                            title="Subir imagen"
+                          >
+                            {uploadingAvatar ? (
+                              <Spinner className="h-3 w-3" />
+                            ) : (
+                              <Upload className="h-3 w-3" />
+                            )}
+                          </label>
+                        </div>
+                        
+                        {/* Botón URL */}
+                        <button
                           onClick={() => {
-                            if (avatarUrl) {
-                              setAvatarPreview(avatarUrl)
-                              setAvatarUrl(avatarUrl)
+                            const url = prompt("Pega la URL de la imagen:")
+                            if (url) {
+                              setAvatarUrl(url)
+                              setAvatarPreview(url)
+                              handleSaveField('avatar')
                             }
                           }}
-                          disabled={!avatarUrl}
-                          size="sm"
-                          variant="outline"
+                          className="inline-flex items-center justify-center w-8 h-8 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors text-xs"
+                          title="Usar URL"
                         >
-                          Cargar
-                        </Button>
-                      </div>
-                      
-                      {/* Botones de acción */}
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => handleSaveField('avatar')}
-                          disabled={saving}
-                          size="sm"
-                          className="bg-green-500 hover:bg-green-600"
-                        >
-                          {saving ? "Guardando..." : "Guardar"}
-                        </Button>
-                        <Button
-                          onClick={() => handleCancelField('avatar')}
-                          disabled={saving}
-                          variant="outline"
-                          size="sm"
-                        >
-                          Cancelar
-                        </Button>
+                          🔗
+                        </button>
                       </div>
                     </div>
                   </div>
