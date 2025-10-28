@@ -1,5 +1,5 @@
 import { auth, db } from './firebase'; // Tu auth central ya configurado
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://controlfile.onrender.com';
 
@@ -14,19 +14,11 @@ export async function getControlBioFolder(): Promise<string> {
   const user = auth.currentUser;
   if (!user) throw new Error('No autenticado');
 
-  const folderId = `controlbio-main-${Date.now()}`;
+  // Usar un ID fijo para evitar duplicados
+  const folderId = `controlbio-main-${user.uid}`;
   
-  // Verificar si la carpeta ya existe
-  const folderRef = doc(db, 'files', folderId);
-  const folderSnap = await getDoc(folderRef);
-  
-  if (folderSnap.exists()) {
-    console.log('✅ Carpeta ControlBio ya existe:', folderId);
-    return folderId;
-  }
-
-  // Crear la carpeta directamente en Firestore
-  console.log('📁 Creando carpeta ControlBio...');
+  // Crear la carpeta directamente en Firestore (setDoc crea o actualiza)
+  console.log('📁 Creando/obteniendo carpeta ControlBio...');
   
   const folderData = {
     id: folderId,
@@ -60,8 +52,9 @@ export async function getControlBioFolder(): Promise<string> {
     }
   };
 
+  const folderRef = doc(db, 'files', folderId);
   await setDoc(folderRef, folderData);
-  console.log('✅ Carpeta ControlBio creada en taskbar:', folderId);
+  console.log('✅ Carpeta ControlBio creada/actualizada en taskbar:', folderId);
   
   return folderId;
 }
@@ -207,24 +200,24 @@ export async function createShareLink(fileId: string, expiresInHours: number = 2
 
 // 📋 LISTAR ARCHIVOS
 export async function listFiles(parentId: string | null = null) {
-  const token = await getToken();
-  const url = new URL(`${BACKEND_URL}/api/files/list`);
-  url.searchParams.set('parentId', parentId === null ? 'null' : parentId);
-  url.searchParams.set('pageSize', '50');
-  
-  const response = await fetch(url.toString(), {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-  });
-  
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Error al listar archivos');
-  }
-  
-  const { items } = await response.json();
-  return items;
+  const user = auth.currentUser;
+  if (!user) throw new Error('No autenticado');
+
+  const q = query(
+    collection(db, 'files'),
+    where('userId', '==', user.uid),
+    where('parentId', '==', parentId),
+    where('deletedAt', '==', null),
+    orderBy('createdAt', 'desc')
+  );
+
+  const snapshot = await getDocs(q);
+  const files = snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  }));
+
+  return files;
 }
 
 // 🗑️ ELIMINAR ARCHIVO
@@ -282,7 +275,7 @@ export async function ensureFolderExists(folderName: string, parentId: string): 
     
     // 2. Buscar carpeta existente
     const existingFolder = items?.find(
-      (item: { type: string; name: string }) => item.type === 'folder' && item.name === folderName
+      (item: any) => item.type === 'folder' && item.name === folderName
     );
     
     if (existingFolder) {
