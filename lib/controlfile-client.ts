@@ -1,6 +1,13 @@
 import { auth, db } from './firebase'; // Tu auth central ya configurado
 import { doc, setDoc, getDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://controlfile.onrender.com';
+
+async function getToken() {
+  const user = auth.currentUser;
+  if (!user) throw new Error('No autenticado');
+  return user.getIdToken();
+}
 
 
 // 📁 CREAR/OBTENER CARPETA PRINCIPAL EN TASKBAR
@@ -59,120 +66,137 @@ export async function uploadFile(
   parentId: string | null = null,
   onProgress?: (percent: number) => void
 ): Promise<string> {
-  const user = auth.currentUser;
-  if (!user) throw new Error('No autenticado');
-
-  // 1. Subir archivo a Firebase Storage
-  const storage = getStorage();
-  const fileRef = ref(storage, `files/${user.uid}/${Date.now()}-${file.name}`);
+  const token = await getToken();
   
-  // Simular progreso
-  if (onProgress) {
-    onProgress(10);
+  // 1. Crear sesión de subida
+  const presignResponse = await fetch(`${BACKEND_URL}/api/uploads/presign`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: file.name,
+      size: file.size,
+      mime: file.type || 'application/octet-stream',
+      parentId,
+    }),
+  });
+  
+  if (!presignResponse.ok) {
+    const error = await presignResponse.json();
+    throw new Error(error.error || 'Error al crear sesión de subida');
   }
   
-  const snapshot = await uploadBytes(fileRef, file);
-  const downloadURL = await getDownloadURL(snapshot.ref);
+  const { uploadSessionId } = await presignResponse.json();
   
-  if (onProgress) {
-    onProgress(90);
-  }
-
-  // 2. Crear registro en Firestore
-  const fileId = `file-${Date.now()}`;
-  const fileData = {
-    id: fileId,
-    userId: user.uid,
-    name: file.name,
-    slug: file.name.toLowerCase().replace(/\s+/g, '-'),
-    parentId: parentId,
-    path: parentId ? [parentId] : [],
-    type: 'file',
-    mime: file.type,
-    size: file.size,
-    downloadURL: downloadURL,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    deletedAt: null,
-    metadata: {
-      icon: 'File',
-      color: 'text-gray-600',
-      isMainFolder: false,
-      isDefault: false,
-      description: '',
-      tags: [],
-      isPublic: false,
-      viewCount: 0,
-      lastAccessedAt: new Date(),
-      source: 'navbar',
-      permissions: {
-        canEdit: true,
-        canDelete: true,
-        canShare: true,
-        canDownload: true
-      },
-      customFields: {}
-    }
-  };
-
-  await setDoc(doc(db, 'files', fileId), fileData);
+  // 2. Subir archivo vía proxy
+  await uploadThroughProxy(file, uploadSessionId, token, onProgress);
   
-  if (onProgress) {
-    onProgress(100);
+  // 3. Confirmar subida
+  const confirmResponse = await fetch(`${BACKEND_URL}/api/uploads/confirm`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ uploadSessionId }),
+  });
+  
+  if (!confirmResponse.ok) {
+    const error = await confirmResponse.json();
+    throw new Error(error.error || 'Error al confirmar subida');
   }
   
-  console.log(`✅ Archivo ${file.name} subido`);
+  const { fileId } = await confirmResponse.json();
   return fileId;
 }
 
+// Subir usando proxy (evita CORS)
+function uploadThroughProxy(
+  file: File, 
+  sessionId: string, 
+  token: string,
+  onProgress?: (progress: number) => void
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable && onProgress) {
+        const progress = Math.round((e.loaded / e.total) * 100);
+        onProgress(progress);
+      }
+    });
+    
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(`Error HTTP ${xhr.status}`));
+      }
+    });
+    
+    xhr.addEventListener('error', () => {
+      reject(new Error('Error de red al subir archivo'));
+    });
+    
+    xhr.open('POST', `${BACKEND_URL}/api/uploads/proxy-upload`);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('sessionId', sessionId);
+    
+    xhr.send(formData);
+  });
+}
 
 // 📥 OBTENER URL DE DESCARGA
 export async function getDownloadUrl(fileId: string): Promise<string> {
-  const user = auth.currentUser;
-  if (!user) throw new Error('No autenticado');
-
-  // Obtener el documento del archivo
-  const fileRef = doc(db, 'files', fileId);
-  const fileSnap = await getDoc(fileRef);
+  const token = await getToken();
   
-  if (!fileSnap.exists()) {
-    throw new Error('Archivo no encontrado');
+  const response = await fetch(`${BACKEND_URL}/api/files/presign-get`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fileId }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Error al obtener URL de descarga');
   }
   
-  const fileData = fileSnap.data();
-  
-  // Verificar que el archivo pertenece al usuario
-  if (fileData.userId !== user.uid) {
-    throw new Error('No tienes permisos para acceder a este archivo');
-  }
-  
-  // Retornar la URL de descarga (ya está en el documento)
-  return fileData.downloadURL;
+  const { downloadUrl } = await response.json();
+  return downloadUrl;
 }
 
 // 🔗 CREAR ENLACE COMPARTIDO
 export async function createShareLink(fileId: string, expiresInHours: number = 24): Promise<string> {
-  const user = auth.currentUser;
-  if (!user) throw new Error('No autenticado');
-
-  // Crear enlace compartido simple (puedes implementar lógica más compleja si necesitas)
-  const shareId = `share-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  const expiresAt = new Date();
-  expiresAt.setHours(expiresAt.getHours() + expiresInHours);
+  const token = await getToken();
   
-  const shareData = {
-    id: shareId,
-    fileId: fileId,
-    userId: user.uid,
-    expiresAt: expiresAt,
-    createdAt: new Date(),
-    isActive: true
-  };
-
-  await setDoc(doc(db, 'shares', shareId), shareData);
+  const response = await fetch(`${BACKEND_URL}/api/shares/create`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ 
+      fileId, 
+      expiresIn: expiresInHours 
+    }),
+  });
   
-  console.log(`✅ Enlace compartido creado: ${shareId}`);
-  return shareId;
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Error al crear enlace de compartir');
+  }
+  
+  const { shareUrl } = await response.json();
+  return shareUrl;
 }
 
 // 📋 LISTAR ARCHIVOS
@@ -199,32 +223,21 @@ export async function listFiles(parentId: string | null = null) {
 
 // 🗑️ ELIMINAR ARCHIVO
 export async function deleteFile(fileId: string): Promise<void> {
-  const user = auth.currentUser;
-  if (!user) throw new Error('No autenticado');
-
-  // Obtener el documento del archivo
-  const fileRef = doc(db, 'files', fileId);
-  const fileSnap = await getDoc(fileRef);
+  const token = await getToken();
   
-  if (!fileSnap.exists()) {
-    throw new Error('Archivo no encontrado');
+  const response = await fetch(`${BACKEND_URL}/api/files/delete`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fileId }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Error al eliminar archivo');
   }
-  
-  const fileData = fileSnap.data();
-  
-  // Verificar que el archivo pertenece al usuario
-  if (fileData.userId !== user.uid) {
-    throw new Error('No tienes permisos para eliminar este archivo');
-  }
-  
-  // Marcar como eliminado (soft delete)
-  await setDoc(fileRef, {
-    ...fileData,
-    deletedAt: new Date(),
-    updatedAt: new Date()
-  }, { merge: true });
-  
-  console.log(`✅ Archivo ${fileId} eliminado`);
 }
 
 // 📁 CREAR SUBCARPETA
