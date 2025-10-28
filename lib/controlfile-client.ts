@@ -68,48 +68,98 @@ export async function uploadFile(
 ): Promise<string> {
   const token = await getToken();
   
-  // 1. Crear sesión de subida
-  const presignResponse = await fetch(`${BACKEND_URL}/api/uploads/presign`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      name: file.name,
-      size: file.size,
-      mime: file.type || 'application/octet-stream',
-      parentId,
-    }),
+  console.log('🚀 Iniciando subida de archivo:', {
+    name: file.name,
+    size: file.size,
+    type: file.type,
+    parentId
   });
   
-  if (!presignResponse.ok) {
-    const error = await presignResponse.json();
-    throw new Error(error.error || 'Error al crear sesión de subida');
+  try {
+    // 1. Crear sesión de subida
+    console.log('📝 Creando sesión de subida...');
+    const presignResponse = await fetch(`${BACKEND_URL}/api/uploads/presign`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: file.name,
+        size: file.size,
+        mime: file.type || 'application/octet-stream',
+        parentId,
+      }),
+    });
+    
+    console.log('📝 Respuesta presign:', {
+      status: presignResponse.status,
+      statusText: presignResponse.statusText,
+      ok: presignResponse.ok
+    });
+    
+    if (!presignResponse.ok) {
+      const errorText = await presignResponse.text();
+      console.error('❌ Error en presign:', errorText);
+      throw new Error(`Error ${presignResponse.status}: ${errorText}`);
+    }
+    
+    const presignData = await presignResponse.json();
+    console.log('✅ Sesión creada:', presignData);
+    
+    const { uploadSessionId } = presignData;
+    
+    // 2. Subir archivo vía proxy
+    console.log('📤 Subiendo archivo...');
+    if (onProgress) onProgress(20);
+    
+    await uploadThroughProxy(file, uploadSessionId, token, (progress) => {
+      if (onProgress) {
+        // Mapear progreso de 20% a 80%
+        onProgress(20 + (progress * 0.6));
+      }
+    });
+    
+    console.log('✅ Archivo subido');
+    if (onProgress) onProgress(80);
+    
+    // 3. Confirmar subida
+    console.log('✅ Confirmando subida...');
+    const confirmResponse = await fetch(`${BACKEND_URL}/api/uploads/confirm`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ uploadSessionId }),
+    });
+    
+    console.log('✅ Respuesta confirm:', {
+      status: confirmResponse.status,
+      statusText: confirmResponse.statusText,
+      ok: confirmResponse.ok
+    });
+    
+    if (!confirmResponse.ok) {
+      const errorText = await confirmResponse.text();
+      console.error('❌ Error en confirm:', errorText);
+      throw new Error(`Error ${confirmResponse.status}: ${errorText}`);
+    }
+    
+    const confirmData = await confirmResponse.json();
+    console.log('✅ Subida confirmada:', confirmData);
+    
+    const { fileId } = confirmData;
+    
+    if (onProgress) onProgress(100);
+    
+    console.log(`✅ Archivo ${file.name} subido exitosamente:`, fileId);
+    return fileId;
+    
+  } catch (error) {
+    console.error('❌ Error completo en uploadFile:', error);
+    throw error;
   }
-  
-  const { uploadSessionId } = await presignResponse.json();
-  
-  // 2. Subir archivo vía proxy
-  await uploadThroughProxy(file, uploadSessionId, token, onProgress);
-  
-  // 3. Confirmar subida
-  const confirmResponse = await fetch(`${BACKEND_URL}/api/uploads/confirm`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ uploadSessionId }),
-  });
-  
-  if (!confirmResponse.ok) {
-    const error = await confirmResponse.json();
-    throw new Error(error.error || 'Error al confirmar subida');
-  }
-  
-  const { fileId } = await confirmResponse.json();
-  return fileId;
 }
 
 // Subir usando proxy (evita CORS)
@@ -154,24 +204,56 @@ function uploadThroughProxy(
 
 // 📥 OBTENER URL DE DESCARGA
 export async function getDownloadUrl(fileId: string): Promise<string> {
-  const token = await getToken();
+  const user = auth.currentUser;
+  if (!user) throw new Error('No autenticado');
+
+  // Obtener el documento del archivo
+  const fileRef = doc(db, 'files', fileId);
+  const fileSnap = await getDoc(fileRef);
   
-  const response = await fetch(`${BACKEND_URL}/api/files/presign-get`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ fileId }),
-  });
-  
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Error al obtener URL de descarga');
+  if (!fileSnap.exists()) {
+    throw new Error('Archivo no encontrado');
   }
   
-  const { downloadUrl } = await response.json();
-  return downloadUrl;
+  const fileData = fileSnap.data();
+  
+  // Verificar que el archivo pertenece al usuario
+  if (fileData.userId !== user.uid) {
+    throw new Error('No tienes permisos para acceder a este archivo');
+  }
+  
+  // Si el archivo no se ha subido, mostrar mensaje
+  if (fileData.metadata?.uploadStatus === 'pending') {
+    throw new Error('Archivo pendiente de subida - API de ControlFile no disponible');
+  }
+  
+  // Si tiene URL de descarga, retornarla
+  if (fileData.downloadURL) {
+    return fileData.downloadURL;
+  }
+  
+  // Si no tiene URL, intentar obtenerla de ControlFile
+  try {
+    const token = await getToken();
+    
+    const response = await fetch(`${BACKEND_URL}/api/files/presign-get`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ fileId }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Error al obtener URL de descarga');
+    }
+    
+    const { downloadUrl } = await response.json();
+    return downloadUrl;
+  } catch (error) {
+    throw new Error('Archivo no disponible - API de ControlFile no disponible');
+  }
 }
 
 // 🔗 CREAR ENLACE COMPARTIDO
@@ -223,21 +305,32 @@ export async function listFiles(parentId: string | null = null) {
 
 // 🗑️ ELIMINAR ARCHIVO
 export async function deleteFile(fileId: string): Promise<void> {
-  const token = await getToken();
+  const user = auth.currentUser;
+  if (!user) throw new Error('No autenticado');
+
+  // Obtener el documento del archivo
+  const fileRef = doc(db, 'files', fileId);
+  const fileSnap = await getDoc(fileRef);
   
-  const response = await fetch(`${BACKEND_URL}/api/files/delete`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ fileId }),
-  });
-  
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Error al eliminar archivo');
+  if (!fileSnap.exists()) {
+    throw new Error('Archivo no encontrado');
   }
+  
+  const fileData = fileSnap.data();
+  
+  // Verificar que el archivo pertenece al usuario
+  if (fileData.userId !== user.uid) {
+    throw new Error('No tienes permisos para eliminar este archivo');
+  }
+  
+  // Marcar como eliminado (soft delete)
+  await setDoc(fileRef, {
+    ...fileData,
+    deletedAt: new Date(),
+    updatedAt: new Date()
+  }, { merge: true });
+  
+  console.log(`✅ Archivo ${fileId} eliminado`);
 }
 
 // 📁 CREAR SUBCARPETA
