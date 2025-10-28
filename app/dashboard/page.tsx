@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
+import NextLink from "next/link"
 import {
   doc,
   getDoc,
@@ -214,21 +215,35 @@ export default function DashboardPage() {
 
     setUploadingAvatar(true)
     try {
-      // 1. Obtener o crear la carpeta ControlBio
+      // 1. Obtener o crear la carpeta ControlBio en Firestore
       const controlBioFolderId = await getControlBioFolder()
       
-      // 2. Crear subcarpeta "Fotos de perfil" si no existe
+      // 2. Crear subcarpeta "Fotos de perfil" si no existe (Firestore)
       const fotosPerfilFolderId = await ensureFolderExists("Fotos de perfil", controlBioFolderId)
       
-      // 3. Subir archivo a ControlFile
+      // 3. Subir archivo a ControlFile usando la API (igual que tab Archivos)
       const fileId = await uploadFile(file, fotosPerfilFolderId, (progress) => {
         console.log(`Subiendo avatar: ${progress}%`)
       })
       
-      // 4. Obtener URL de descarga
-      const downloadUrl = await getDownloadUrl(fileId)
+      // 4. Obtener URL presignada para vista previa (API de ControlFile)
+      const token = await user.getIdToken()
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'https://controlfile.onrender.com'}/api/files/presign-get`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ fileId }),
+      })
       
-      // 5. Actualizar estado local
+      if (!response.ok) {
+        throw new Error('Error al obtener URL de vista previa')
+      }
+      
+      const { downloadUrl } = await response.json()
+      
+      // 5. Actualizar estado local con la URL presignada
       setAvatarPreview(downloadUrl)
       setAvatarUrl(downloadUrl)
       
@@ -766,9 +781,11 @@ export default function DashboardPage() {
             Control<span className="text-primary">Bio</span>
           </h1>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => router.push(`/${profile.username}`)}>
-              <Eye className="h-4 w-4 mr-2" />
-              Ver perfil
+            <Button variant="outline" size="sm" asChild>
+              <NextLink href={`/${profile.username}`}>
+                <Eye className="h-4 w-4 mr-2" />
+                Ver perfil
+              </NextLink>
             </Button>
             <Button variant="outline" onClick={handleSignOut}>
               Cerrar sesión
