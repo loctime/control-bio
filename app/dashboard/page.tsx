@@ -823,7 +823,7 @@ export default function DashboardPage() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Mi Perfil</CardTitle>
+                    <CardTitle>Mi Perfil <span className="text-xs text-muted-foreground">({profile?.email})</span></CardTitle>
                   </div>
                 </div>
               </CardHeader>
