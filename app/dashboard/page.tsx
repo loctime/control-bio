@@ -247,9 +247,23 @@ export default function DashboardPage() {
       setAvatarPreview(downloadUrl)
       setAvatarUrl(downloadUrl)
       
+      // 6. Guardar automáticamente el avatar en el perfil del usuario
+      if (profile) {
+        const updatedProfile: UserProfile = {
+          ...profile,
+          uid: user.uid,
+          avatarUrl: downloadUrl,
+          updatedAt: new Date(),
+        }
+
+        const profileRef = doc(db, "apps/controlbio/users", user.uid)
+        await setDoc(profileRef, updatedProfile)
+        setProfile(updatedProfile)
+      }
+      
       toast({
         title: "Avatar actualizado",
-        description: "La imagen se ha subido correctamente a ControlFile",
+        description: "La imagen se ha guardado correctamente",
       })
     } catch (error: any) {
       console.error("Error uploading avatar:", error)
