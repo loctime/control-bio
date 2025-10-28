@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { Spinner } from '@/components/ui/spinner';
 import { 
   Upload, 
   Download, 
@@ -133,7 +134,7 @@ export function ControlBioFileManager() {
     return (
       <Card>
         <CardContent className="flex items-center justify-center p-8">
-          <RefreshCw className="w-6 h-6 animate-spin mr-2" />
+          <Spinner className="w-6 h-6 mr-2" />
           <span>Inicializando ControlBio...</span>
         </CardContent>
       </Card>
@@ -184,8 +185,17 @@ export function ControlBioFileManager() {
                 disabled={uploading}
                 className="flex items-center gap-2"
               >
-                <Upload className="w-4 h-4" />
-                Seleccionar Archivo
+                {uploading ? (
+                  <>
+                    <Spinner className="w-4 h-4" />
+                    Cargando...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4" />
+                    Seleccionar Archivo
+                  </>
+                )}
               </Button>
             </div>
 
@@ -211,15 +221,24 @@ export function ControlBioFileManager() {
                     disabled={uploading}
                     className="flex items-center gap-2"
                   >
-                    <Upload className="w-4 h-4" />
-                    Subir
+                    {uploading ? (
+                      <>
+                        <Spinner className="w-4 h-4" />
+                        Subiendo...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        Subir
+                      </>
+                    )}
                   </Button>
                 </div>
 
                 {uploading && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <Spinner className="w-4 h-4" />
                       <span className="text-sm">Subiendo archivo...</span>
                     </div>
                     <Progress value={uploadProgress} className="w-full" />

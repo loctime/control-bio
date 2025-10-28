@@ -146,3 +146,72 @@
 [draggable="true"]:active {
   cursor: grabbing;
 }
+
+/* Animación de spinner más lenta con delay */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+  animation-delay: 0.5s;
+}
+
+/* Animación de spinner con colores que cambian - Colores de ControlBio */
+@keyframes spin-colors {
+  from {
+    transform: rotate(0deg);
+    color: #ff6b35; /* Naranja primario de ControlBio */
+  }
+  50% {
+    color: #ffa570; /* Naranja claro */
+  }
+  to {
+    transform: rotate(360deg);
+    color: #ffffff; /* Blanco */
+  }
+}
+
+.animate-spin-colors {
+  animation: spin-colors 3s linear infinite;
+  animation-delay: 0.5s;
+}
+
+/* Versión alternativa con gradiente - Colores de ControlBio */
+.spinner-gradient {
+  background: linear-gradient(90deg, 
+    #ff6b35 0%,      /* Naranja primario */
+    #ffa570 50%,     /* Naranja claro */
+    #ffffff 100%     /* Blanco */
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: spin-slow 3s linear infinite;
+  animation-delay: 0.5s;
+}
+
+/* Versión alternativa: Naranja oscuro → Naranja claro → Blanco */
+@keyframes spin-colors-alt {
+  from {
+    transform: rotate(0deg);
+    color: #e55a2b; /* Naranja oscuro */
+  }
+  50% {
+    color: #ff6b35; /* Naranja primario */
+  }
+  to {
+    transform: rotate(360deg);
+    color: #ffffff; /* Blanco */
+  }
+}
+
+.animate-spin-colors-alt {
+  animation: spin-colors-alt 3s linear infinite;
+  animation-delay: 0.5s;
+}

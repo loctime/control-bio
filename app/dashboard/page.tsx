@@ -16,6 +16,7 @@ import {
   deleteDoc,
   orderBy,
   writeBatch,
+  deleteField,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -675,16 +676,29 @@ export default function DashboardPage() {
 
       console.log("Found link:", currentLink.title)
 
-      // Crear el enlace actualizado con la nueva sección
-      const updatedLink = {
-        ...currentLink,
-        sectionId: sectionId || undefined,
-        updatedAt: new Date().toISOString()
+      // Usar updateDoc para actualizar solo el campo necesario
+      const linkRef = doc(db, "apps/controlbio/links", linkId)
+      
+      if (sectionId) {
+        // Si hay sección, asignarla
+        await updateDoc(linkRef, {
+          sectionId: sectionId,
+          updatedAt: new Date().toISOString()
+        })
+      } else {
+        // Si no hay sección, eliminar el campo
+        await updateDoc(linkRef, {
+          sectionId: deleteField(),
+          updatedAt: new Date().toISOString()
+        })
       }
 
-      // Usar setDoc en lugar de updateDoc para evitar problemas de permisos
-      const linkRef = doc(db, "apps/controlbio/links", linkId)
-      await setDoc(linkRef, updatedLink)
+      // Crear el enlace actualizado para el estado local
+      const updatedLink = {
+        ...currentLink,
+        sectionId: sectionId,
+        updatedAt: new Date().toISOString()
+      }
 
       // Actualizar el estado local
       setLinks(links.map(link => 
