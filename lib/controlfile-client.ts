@@ -1,4 +1,5 @@
-import { auth } from './firebase'; // Tu auth central ya configurado
+import { auth, db } from './firebase'; // Tu auth central ya configurado
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://controlfile.onrender.com';
 
@@ -10,41 +11,59 @@ async function getToken() {
 
 // 📁 CREAR/OBTENER CARPETA PRINCIPAL EN TASKBAR
 export async function getControlBioFolder(): Promise<string> {
-  const token = await getToken();
+  const user = auth.currentUser;
+  if (!user) throw new Error('No autenticado');
+
+  const folderId = `controlbio-main-${Date.now()}`;
   
-  // Crear la carpeta directamente - no verificar existencia porque el backend
-  // actual crea en colección "folders" pero listFiles busca en "files"
+  // Verificar si la carpeta ya existe
+  const folderRef = doc(db, 'files', folderId);
+  const folderSnap = await getDoc(folderRef);
+  
+  if (folderSnap.exists()) {
+    console.log('✅ Carpeta ControlBio ya existe:', folderId);
+    return folderId;
+  }
+
+  // Crear la carpeta directamente en Firestore
   console.log('📁 Creando carpeta ControlBio...');
   
-  const response = await fetch(`${BACKEND_URL}/api/folders/create`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      id: `controlbio-main-${Date.now()}`,
-      name: 'ControlBio',
-      parentId: null,
+  const folderData = {
+    id: folderId,
+    userId: user.uid,
+    name: 'ControlBio',
+    slug: 'controlbio',
+    parentId: null,
+    path: [],
+    type: 'folder',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    deletedAt: null,
+    metadata: {
       icon: 'Taskbar',
       color: 'text-purple-600',
-      metadata: {
-        isMainFolder: true,
-        isPublic: false,
-        source: 'taskbar' // ✅ CLAVE: Aparece en taskbar
-      }
-    }),
-  });
+      isMainFolder: true,
+      isDefault: false,
+      description: '',
+      tags: [],
+      isPublic: false,
+      viewCount: 0,
+      lastAccessedAt: new Date(),
+      source: 'taskbar', // ✅ CLAVE: Aparece en taskbar
+      permissions: {
+        canEdit: true,
+        canDelete: true,
+        canShare: true,
+        canDownload: true
+      },
+      customFields: {}
+    }
+  };
+
+  await setDoc(folderRef, folderData);
+  console.log('✅ Carpeta ControlBio creada en taskbar:', folderId);
   
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || `Error HTTP ${response.status}`);
-  }
-  
-  const result = await response.json();
-  console.log('✅ Carpeta ControlBio creada en taskbar:', result.folderId);
-  
-  return result.folderId;
+  return folderId;
 }
 
 // 📤 SUBIR ARCHIVO
