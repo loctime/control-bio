@@ -196,29 +196,30 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
       file.mime?.startsWith('image/')
     )
 
-    const newItems: GalleryLayoutItem[] = availableFiles.map((file, index) => {
+    const newItems: GalleryLayoutItem[] = []
+    let baseZ = Math.max(0, ...layout.items.map(item => item.zIndex))
+    for (const file of availableFiles) {
       const position = findNextAvailablePosition(
         [...layout.items, ...newItems],
         2,
         2,
         layout.settings.columns
       )
-
-      return {
+      newItems.push({
         fileId: file.id,
         x: position.x,
         y: position.y,
         width: 2,
         height: 2,
-        zIndex: Math.max(0, ...layout.items.map(item => item.zIndex)) + index + 1,
+        zIndex: ++baseZ,
         aspectRatio: '16:9',
         effects: {
           borderRadius: 8,
           shadow: true,
           rotation: 0
         }
-      }
-    })
+      })
+    }
 
     setLayout({
       ...layout,
@@ -372,64 +373,57 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Canvas de diseño */}
-        <div className="lg:col-span-3">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="font-semibold">Canvas de Diseño</h4>
-                <div className="text-sm text-muted-foreground">
-                  {layout.settings.columns} columnas × {Math.ceil(600 / layout.settings.gridSize)} filas
-                </div>
-              </div>
-              
-              <div className="relative overflow-auto border rounded-lg bg-white">
-                <div
-                  ref={canvasRef}
-                  className="relative"
-                  style={canvasStyle}
-                >
-                  {layout.items.map((item) => {
-                    const file = files.find(f => f.id === item.fileId)
-                    return (
-                      <ResizableImageCard
-                        key={item.fileId}
-                        item={item}
-                        imageUrl={file?.url}
-                        imageName={file?.name || 'Imagen'}
-                        gridSize={layout.settings.gridSize}
-                        gap={layout.settings.gap}
-                        onUpdate={(updates) => handleUpdateItem(item.fileId, updates)}
-                        onRemove={() => handleRemoveItem(item.fileId)}
-                        isSelected={selectedItem === item.fileId}
-                        onSelect={() => setSelectedItem(item.fileId)}
-                      />
-                    )
-                  })}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      {/* Header de nuevas imágenes (no visible en la vista pública) */}
+      <ImageStagingArea
+        files={files}
+        layoutItems={layout.items}
+        onAddToLayout={handleAddToLayout}
+        onAutoLayout={handleAutoLayout}
+        onUploadMore={() => {
+          toast({
+            title: 'Subida desde aquí en siguiente iteración',
+            description: 'Por ahora, usa Archivos para subir y luego agrega al layout.',
+          })
+        }}
+      />
 
-        {/* Área de staging */}
-        <div className="lg:col-span-1">
-          <ImageStagingArea
-            files={files}
-            layoutItems={layout.items}
-            onAddToLayout={handleAddToLayout}
-            onAutoLayout={handleAutoLayout}
-            onUploadMore={() => {
-              // TODO: Implementar subida de archivos
-              toast({
-                title: 'Función en desarrollo',
-                description: 'La subida de archivos se implementará próximamente',
-              })
-            }}
-          />
-        </div>
-      </div>
+      {/* Canvas de diseño */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="font-semibold">Canvas de Diseño</h4>
+            <div className="text-sm text-muted-foreground">
+              {layout.settings.columns} columnas × {Math.ceil(600 / layout.settings.gridSize)} filas
+            </div>
+          </div>
+
+          <div className="relative overflow-auto border rounded-lg bg-white">
+            <div
+              ref={canvasRef}
+              className="relative"
+              style={canvasStyle}
+            >
+              {layout.items.map((item) => {
+                const file = files.find(f => f.id === item.fileId)
+                return (
+                  <ResizableImageCard
+                    key={item.fileId}
+                    item={item}
+                    imageUrl={file?.url}
+                    imageName={file?.name || 'Imagen'}
+                    gridSize={layout.settings.gridSize}
+                    gap={layout.settings.gap}
+                    onUpdate={(updates) => handleUpdateItem(item.fileId, updates)}
+                    onRemove={() => handleRemoveItem(item.fileId)}
+                    isSelected={selectedItem === item.fileId}
+                    onSelect={() => setSelectedItem(item.fileId)}
+                  />
+                )
+              })}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
