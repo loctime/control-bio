@@ -92,28 +92,28 @@ export default function HomePage() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">
+        <div className="container mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
+          <h1 className="text-xl sm:text-2xl font-bold">
             Control<span className="text-primary">Bio</span>
           </h1>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => router.push("/dashboard")}>
+            <Button variant="outline" size="sm" className="text-xs sm:text-sm" onClick={() => router.push("/dashboard")}>
               Dashboard
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-12 max-w-4xl">
-        <div className="text-center space-y-8 mb-12">
-          <div className="space-y-4">
-            <h1 className="text-5xl md:text-6xl font-bold text-balance">
+      <main className="container mx-auto px-4 sm:px-6 py-8 sm:py-12 max-w-4xl">
+        <div className="text-center space-y-6 sm:space-y-8 mb-8 sm:mb-12">
+          <div className="space-y-3 sm:space-y-4">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-balance">
               Control<span className="text-primary">Bio</span>
             </h1>
-            <p className="text-xl text-muted-foreground text-balance">
+            <p className="text-base sm:text-lg md:text-xl text-muted-foreground text-balance px-4">
               Tu página de enlaces personalizada. Comparte todo lo que haces en un solo lugar.
             </p>
-            <div className="max-w-md mx-auto">
+            <div className="max-w-md mx-auto px-2">
           <Card>
             <CardHeader>
               <CardTitle>Iniciar sesión</CardTitle>
@@ -164,20 +164,20 @@ export default function HomePage() {
         </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="p-6 rounded-lg bg-card border border-border">
-              <h3 className="text-lg font-semibold mb-2">Personalizable</h3>
-              <p className="text-sm text-muted-foreground">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+            <div className="p-4 sm:p-6 rounded-lg bg-card border border-border">
+              <h3 className="text-base sm:text-lg font-semibold mb-2">Personalizable</h3>
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 Personaliza colores, temas y estilos para que coincida con tu marca
               </p>
             </div>
-            <div className="p-6 rounded-lg bg-card border border-border">
-              <h3 className="text-lg font-semibold mb-2">Fácil de usar</h3>
-              <p className="text-sm text-muted-foreground">Gestiona tus enlaces con una interfaz intuitiva y sencilla</p>
+            <div className="p-4 sm:p-6 rounded-lg bg-card border border-border">
+              <h3 className="text-base sm:text-lg font-semibold mb-2">Fácil de usar</h3>
+              <p className="text-xs sm:text-sm text-muted-foreground">Gestiona tus enlaces con una interfaz intuitiva y sencilla</p>
             </div>
-            <div className="p-6 rounded-lg bg-card border border-border">
-              <h3 className="text-lg font-semibold mb-2">Rápido</h3>
-              <p className="text-sm text-muted-foreground">Páginas optimizadas que cargan instantáneamente</p>
+            <div className="p-4 sm:p-6 rounded-lg bg-card border border-border">
+              <h3 className="text-base sm:text-lg font-semibold mb-2">Rápido</h3>
+              <p className="text-xs sm:text-sm text-muted-foreground">Páginas optimizadas que cargan instantáneamente</p>
             </div>
           </div>
         </div>

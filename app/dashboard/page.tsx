@@ -852,45 +852,46 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">
+        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between gap-2">
+          <h1 className="text-lg sm:text-xl md:text-2xl font-bold truncate">
             Control<span className="text-primary">Bio</span>
           </h1>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" asChild>
+          <div className="flex gap-1 sm:gap-2 flex-shrink-0">
+            <Button variant="outline" size="sm" className="text-xs sm:text-sm px-2 sm:px-3" asChild>
               <NextLink href={`/${profile.username}`}>
-                <Eye className="h-4 w-4 mr-2" />
-                Ver perfil
+                <Eye className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Ver perfil</span>
               </NextLink>
             </Button>
-            <Button variant="outline" onClick={handleSignOut}>
-              Cerrar sesión
+            <Button variant="outline" size="sm" className="text-xs sm:text-sm px-2 sm:px-3" onClick={handleSignOut}>
+              <span className="hidden sm:inline">Cerrar sesión</span>
+              <span className="sm:hidden">Salir</span>
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 max-w-4xl">
+      <main className="container mx-auto px-3 sm:px-4 max-w-4xl">
         <Tabs defaultValue="profile" className="space-y-0">
-          <TabsList className="grid w-full grid-cols-6 mt-4">
-            <TabsTrigger value="profile">Perfil</TabsTrigger>
-            <TabsTrigger value="links">Enlaces</TabsTrigger>
-            <TabsTrigger value="carousels">Carruseles</TabsTrigger>
-            <TabsTrigger value="files">Archivos</TabsTrigger>
-            <TabsTrigger value="theme">Personalización</TabsTrigger>
-            <TabsTrigger value="security">Seguridad</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 mt-3 sm:mt-4 text-xs sm:text-sm gap-1">
+            <TabsTrigger value="profile" className="py-1.5 sm:py-2">Perfil</TabsTrigger>
+            <TabsTrigger value="links" className="py-1.5 sm:py-2">Enlaces</TabsTrigger>
+            <TabsTrigger value="carousels" className="py-1.5 sm:py-2">Carruseles</TabsTrigger>
+            <TabsTrigger value="files" className="py-1.5 sm:py-2">Archivos</TabsTrigger>
+            <TabsTrigger value="theme" className="py-1.5 sm:py-2">Tema</TabsTrigger>
+            <TabsTrigger value="security" className="py-1.5 sm:py-2">Seguridad</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="profile" className="space-y-6 mt-0">
+          <TabsContent value="profile" className="space-y-4 sm:space-y-6 mt-3 sm:mt-4">
             <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
+              <CardHeader className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div>
-                    <CardTitle>Mi Perfil <span className="text-xs text-muted-foreground">({profile?.email})</span></CardTitle>
+                    <CardTitle className="text-base sm:text-lg">Mi Perfil <span className="text-xs text-muted-foreground break-all">({profile?.email})</span></CardTitle>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-3 sm:p-6">
                 {/* Vista previa del perfil con controles integrados */}
                 <div 
                   className="rounded-lg overflow-hidden relative"
@@ -900,7 +901,7 @@ export default function DashboardPage() {
                   }}
                 >
                   {/* Banner */}
-                  <div className="relative h-48 w-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 group/banner">
+                  <div className="relative h-32 sm:h-40 md:h-48 w-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 group/banner">
                     {bannerPreview || bannerUrl ? (
                       <img 
                         src={bannerPreview || bannerUrl} 
@@ -970,11 +971,11 @@ export default function DashboardPage() {
                   </div>
                   
                   {/* Contenido del perfil */}
-                  <div className="p-8 text-center space-y-6 -mt-24">
+                  <div className="p-4 sm:p-6 md:p-8 text-center space-y-4 sm:space-y-6 -mt-16 sm:-mt-20 md:-mt-24">
                   {/* Avatar con botones pequeños */}
                   <div className="flex justify-center">
                     <div className="relative group">
-                      <Avatar className="h-32 w-32 border-4 border-white shadow-lg">
+                      <Avatar className="h-24 w-24 sm:h-28 sm:w-28 md:h-32 md:w-32 border-4 border-white shadow-lg">
                         <AvatarImage 
                           src={avatarPreview || profile?.avatarUrl} 
                           alt={profile?.displayName} 
@@ -1043,7 +1044,7 @@ export default function DashboardPage() {
                             value={displayName}
                             onChange={(e) => setDisplayName(e.target.value)}
                             placeholder="Tu nombre"
-                            className="text-2xl font-bold text-center bg-transparent border-2 border-white/20 text-white placeholder-white/60 focus:border-white/40 focus:ring-0"
+                            className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-center bg-transparent border-2 border-white/20 text-white placeholder-white/60 focus:border-white/40 focus:ring-0"
                             autoFocus
                           />
                           <div className="flex justify-center gap-1">
@@ -1066,8 +1067,8 @@ export default function DashboardPage() {
                       ) : (
                         <div className="relative inline-block">
                           <div className="flex items-center justify-center gap-2 flex-wrap">
-                            <h1 className="text-2xl font-bold">{profile?.displayName || "Usuario"}</h1>
-                            <p className="text-lg opacity-60">@{profile?.username || "usuario"}</p>
+                            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">{profile?.displayName || "Usuario"}</h1>
+                            <p className="text-sm sm:text-base md:text-lg opacity-60">@{profile?.username || "usuario"}</p>
                           </div>
                           <button
                             onClick={() => {
@@ -1131,7 +1132,7 @@ export default function DashboardPage() {
                   </div>
                   
                   {/* Biografía editable */}
-                  <div className="max-w-md mx-auto relative group">
+                  <div className="max-w-md mx-auto relative group px-2">
                     {editingBio ? (
                       <div className="space-y-2">
                         <Textarea
@@ -1139,7 +1140,7 @@ export default function DashboardPage() {
                           onChange={(e) => setBio(e.target.value)}
                           placeholder="Cuéntanos sobre ti..."
                           rows={3}
-                          className="text-sm bg-transparent border-2 border-white/20 text-white/90 placeholder-white/60 resize-none focus:border-white/40 focus:ring-0"
+                          className="text-xs sm:text-sm bg-transparent border-2 border-white/20 text-white/90 placeholder-white/60 resize-none focus:border-white/40 focus:ring-0"
                           autoFocus
                         />
                         <div className="flex justify-center gap-1">
@@ -1161,7 +1162,7 @@ export default function DashboardPage() {
                       </div>
                     ) : (
                       <div className="relative">
-                        <p className="text-sm opacity-90 whitespace-pre-wrap">
+                        <p className="text-xs sm:text-sm opacity-90 whitespace-pre-wrap break-words">
                           {profile?.bio || "No hay biografía"}
                         </p>
                         <button
@@ -1467,22 +1468,24 @@ export default function DashboardPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="links" className="space-y-6 mt-0">
+          <TabsContent value="links" className="space-y-4 sm:space-y-6 mt-3 sm:mt-4">
             <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
+              <CardHeader className="p-4 sm:p-6">
+                <div className="flex flex-col gap-3 sm:gap-0 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <CardTitle>Mis Enlaces</CardTitle>
-                    <CardDescription>Gestiona los enlaces y secciones de tu perfil</CardDescription>
+                    <CardTitle className="text-base sm:text-lg">Mis Enlaces</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">Gestiona los enlaces y secciones de tu perfil</CardDescription>
                   </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => openSectionDialog()}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Agregar sección
+                  <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+                    <Button variant="outline" size="sm" className="text-xs sm:text-sm" onClick={() => openSectionDialog()}>
+                      <Plus className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Agregar sección</span>
+                      <span className="sm:hidden">Sección</span>
                     </Button>
-                    <Button onClick={() => openLinkDialog()}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Agregar enlace
+                    <Button size="sm" className="text-xs sm:text-sm" onClick={() => openLinkDialog()}>
+                      <Plus className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Agregar enlace</span>
+                      <span className="sm:hidden">Enlace</span>
                     </Button>
                   </div>
                 </div>
@@ -1624,14 +1627,14 @@ export default function DashboardPage() {
             <ControlBioFileManager />
           </TabsContent>
 
-          <TabsContent value="theme" className="space-y-6 mt-0">
+          <TabsContent value="theme" className="space-y-4 sm:space-y-6 mt-3 sm:mt-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Personalización</CardTitle>
-                <CardDescription>Personaliza los colores de tu perfil</CardDescription>
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="text-base sm:text-lg">Personalización</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">Personaliza los colores de tu perfil</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="backgroundColor">Color de fondo</Label>
                     <div className="flex gap-2">

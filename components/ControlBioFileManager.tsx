@@ -145,13 +145,13 @@ export function ControlBioFileManager() {
     <div className="space-y-6">
       {/* Header */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FolderPlus className="w-6 h-6" />
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <FolderPlus className="w-5 h-5 sm:w-6 sm:h-6" />
             ControlBio - Gestión de Archivos
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 p-4 sm:p-6">
           {/* Error Alert */}
           {error && (
             <Alert variant="destructive">
@@ -171,19 +171,19 @@ export function ControlBioFileManager() {
           )}
 
           {/* Upload Section */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
+          <div className="space-y-3 sm:space-y-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
               <Input
                 ref={fileInputRef}
                 type="file"
                 onChange={handleFileSelect}
                 disabled={uploading}
-                className="flex-1"
+                className="flex-1 text-xs sm:text-sm"
               />
               <Button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 text-xs sm:text-sm"
               >
                 {uploading ? (
                   <>
@@ -250,44 +250,48 @@ export function ControlBioFileManager() {
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
+              size="sm"
               onClick={() => setShowCreateFolder(!showCreateFolder)}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 text-xs sm:text-sm"
             >
-              <FolderPlus className="w-4 h-4" />
+              <FolderPlus className="w-3 h-3 sm:w-4 sm:h-4" />
               Nueva Carpeta
             </Button>
             <Button
               variant="outline"
+              size="sm"
               onClick={refreshFiles}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 text-xs sm:text-sm"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
               Actualizar
             </Button>
           </div>
 
           {/* Create Folder */}
           {showCreateFolder && (
-            <div className="flex items-center gap-2 p-4 border rounded-lg bg-gray-50">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-3 sm:p-4 border rounded-lg bg-gray-50">
               <Input
                 placeholder="Nombre de la carpeta"
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleCreateFolder()}
-                className="flex-1"
+                className="flex-1 text-xs sm:text-sm"
               />
-              <Button onClick={handleCreateFolder} disabled={!newFolderName.trim()}>
+              <Button size="sm" onClick={handleCreateFolder} disabled={!newFolderName.trim()} className="text-xs sm:text-sm">
                 Crear
               </Button>
               <Button 
-                variant="outline" 
+                variant="outline"
+                size="sm" 
                 onClick={() => {
                   setShowCreateFolder(false);
                   setNewFolderName('');
                 }}
+                className="text-xs sm:text-sm"
               >
                 Cancelar
               </Button>
@@ -298,28 +302,28 @@ export function ControlBioFileManager() {
 
       {/* Files List */}
       <Card>
-        <CardHeader>
-          <CardTitle>Archivos y Carpetas</CardTitle>
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="text-base sm:text-lg">Archivos y Carpetas</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 sm:p-6">
           {files.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              <FolderPlus className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No hay archivos en ControlBio</p>
-              <p className="text-sm">Sube tu primer archivo para comenzar</p>
+              <FolderPlus className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-4 opacity-50" />
+              <p className="text-sm sm:text-base">No hay archivos en ControlBio</p>
+              <p className="text-xs sm:text-sm">Sube tu primer archivo para comenzar</p>
             </div>
           ) : (
             <div className="space-y-2">
               {files.map((file) => (
                 <div
                   key={file.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+                  className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 sm:p-4 border rounded-lg hover:bg-gray-50"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                     {getFileTypeIcon(file)}
-                    <div>
-                      <p className="font-medium">{file.name}</p>
-                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm sm:text-base truncate">{file.name}</p>
+                      <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500 flex-wrap">
                         {file.type === 'file' && (
                           <>
                             <span>{formatFileSize(file.size)}</span>
@@ -335,26 +339,26 @@ export function ControlBioFileManager() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
                     {file.type === 'file' && (
                       <>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleDownload(file.id, file.name)}
-                          className="flex items-center gap-1"
+                          className="flex items-center gap-1 text-xs sm:text-sm"
                         >
-                          <Download className="w-4 h-4" />
-                          Descargar
+                          <Download className="w-3 h-3 sm:w-4 sm:h-4" />
+                          <span className="hidden sm:inline">Descargar</span>
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleShare(file.id, file.name)}
-                          className="flex items-center gap-1"
+                          className="flex items-center gap-1 text-xs sm:text-sm"
                         >
-                          <Share2 className="w-4 h-4" />
-                          Compartir
+                          <Share2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                          <span className="hidden sm:inline">Compartir</span>
                         </Button>
                       </>
                     )}
@@ -362,10 +366,10 @@ export function ControlBioFileManager() {
                       variant="outline"
                       size="sm"
                       onClick={() => handleDelete(file.id, file.name)}
-                      className="flex items-center gap-1 text-red-600 hover:text-red-700"
+                      className="flex items-center gap-1 text-xs sm:text-sm text-red-600 hover:text-red-700"
                     >
-                      <Trash2 className="w-4 h-4" />
-                      Eliminar
+                      <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <span className="hidden sm:inline">Eliminar</span>
                     </Button>
                   </div>
                 </div>

@@ -45,8 +45,8 @@ export function ExpandableSections({ links, sections = [], theme }: ExpandableSe
 
   if (links.length === 0) {
     return (
-      <div className="text-center py-12 opacity-60">
-        <p>No hay enlaces disponibles</p>
+      <div className="text-center py-8 sm:py-12 opacity-60">
+        <p className="text-sm sm:text-base">No hay enlaces disponibles</p>
       </div>
     )
   }
@@ -54,25 +54,25 @@ export function ExpandableSections({ links, sections = [], theme }: ExpandableSe
   // Si no hay secciones, mostrar enlaces normalmente
   if (sections.length === 0) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-2 sm:space-y-3">
         {links.map((link) => (
           <a
             key={link.id}
             href={link.url}
             target={link.type === "external" ? "_blank" : "_self"}
             rel={link.type === "external" ? "noopener noreferrer" : undefined}
-            className="block w-full px-4 py-2 rounded-lg transition-all hover:scale-105 hover:shadow-lg"
+            className="block w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg transition-all hover:scale-105 hover:shadow-lg"
             style={{
               backgroundColor: theme.buttonColor,
               color: theme.buttonTextColor,
             }}
           >
             <div className="flex items-center justify-center gap-2">
-              <h3 className="font-semibold text-lg leading-tight">{link.title}</h3>
-              {link.type === "external" && <ExternalLink className="h-4 w-4 flex-shrink-0" />}
+              <h3 className="font-semibold text-base sm:text-lg leading-tight break-words">{link.title}</h3>
+              {link.type === "external" && <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />}
             </div>
             {link.description && (
-              <p className="text-xs opacity-90 leading-tight text-center mt-1">
+              <p className="text-xs opacity-90 leading-tight text-center mt-1 px-2 break-words">
                 {link.description}
               </p>
             )}
@@ -86,25 +86,25 @@ export function ExpandableSections({ links, sections = [], theme }: ExpandableSe
     <div className="space-y-4">
       {/* Enlaces sin sección */}
       {linksWithoutSection.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-2 sm:space-y-3">
           {linksWithoutSection.map((link) => (
             <a
               key={link.id}
               href={link.url}
               target={link.type === "external" ? "_blank" : "_self"}
               rel={link.type === "external" ? "noopener noreferrer" : undefined}
-              className="block w-full px-4 py-2 rounded-lg transition-all hover:scale-105 hover:shadow-lg"
+              className="block w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg transition-all hover:scale-105 hover:shadow-lg"
               style={{
                 backgroundColor: theme.buttonColor,
                 color: theme.buttonTextColor,
               }}
             >
               <div className="flex items-center justify-center gap-2">
-                <h3 className="font-semibold text-lg leading-tight">{link.title}</h3>
-                {link.type === "external" && <ExternalLink className="h-4 w-4 flex-shrink-0" />}
+                <h3 className="font-semibold text-base sm:text-lg leading-tight break-words">{link.title}</h3>
+                {link.type === "external" && <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />}
               </div>
               {link.description && (
-                <p className="text-xs opacity-90 leading-tight text-center mt-1">
+                <p className="text-xs opacity-90 leading-tight text-center mt-1 px-2 break-words">
                   {link.description}
                 </p>
               )}
@@ -123,13 +123,13 @@ export function ExpandableSections({ links, sections = [], theme }: ExpandableSe
             <div key={section.id} className="space-y-2">
               {/* Título de la sección */}
               <div 
-                className="w-full p-3 rounded-lg"
+                className="w-full p-2 sm:p-3 rounded-lg"
                 style={{
                   backgroundColor: theme.buttonColor + "20",
                   border: `1px solid ${theme.buttonColor}40`,
                 }}
               >
-                <span className="font-medium text-lg" style={{ color: theme.textColor }}>
+                <span className="font-medium text-sm sm:text-base md:text-lg truncate" style={{ color: theme.textColor }}>
                   {section.title}
                 </span>
               </div>
@@ -150,45 +150,45 @@ export function ExpandableSections({ links, sections = [], theme }: ExpandableSe
             {/* Header de la sección */}
             <button
               onClick={() => toggleSection(section.id)}
-              className="w-full flex items-center justify-between p-3 rounded-lg transition-all hover:opacity-80"
+              className="w-full flex items-center justify-between p-2 sm:p-3 rounded-lg transition-all hover:opacity-80"
               style={{
                 backgroundColor: theme.buttonColor + "20", // 20% opacity
                 color: theme.textColor,
                 border: `1px solid ${theme.buttonColor}40`, // 40% opacity
               }}
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                 {isExpanded ? (
-                  <ChevronDown className="h-4 w-4" />
+                  <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4" />
                 ) : (
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
                 )}
-                <span className="font-medium text-lg">{section.title}</span>
-                <span className="text-sm opacity-70">({sectionLinks.length})</span>
+                <span className="font-medium text-sm sm:text-base md:text-lg truncate">{section.title}</span>
+                <span className="text-xs sm:text-sm opacity-70">({sectionLinks.length})</span>
               </div>
             </button>
 
             {/* Enlaces de la sección (expandible) */}
             {isExpanded && (
-              <div className="space-y-2 ml-4">
+              <div className="space-y-2 ml-2 sm:ml-4">
                 {sectionLinks.map((link) => (
                   <a
                     key={link.id}
                     href={link.url}
                     target={link.type === "external" ? "_blank" : "_self"}
                     rel={link.type === "external" ? "noopener noreferrer" : undefined}
-                    className="block w-full px-4 py-2 rounded-lg transition-all hover:scale-105 hover:shadow-lg"
+                    className="block w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg transition-all hover:scale-105 hover:shadow-lg"
                     style={{
                       backgroundColor: theme.buttonColor,
                       color: theme.buttonTextColor,
                     }}
                   >
                     <div className="flex items-center justify-center gap-2">
-                      <h3 className="font-semibold text-lg leading-tight">{link.title}</h3>
-                      {link.type === "external" && <ExternalLink className="h-4 w-4 flex-shrink-0" />}
+                      <h3 className="font-semibold text-base sm:text-lg leading-tight break-words">{link.title}</h3>
+                      {link.type === "external" && <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />}
                     </div>
                     {link.description && (
-                      <p className="text-xs opacity-90 leading-tight text-center mt-1">
+                      <p className="text-xs opacity-90 leading-tight text-center mt-1 px-2 break-words">
                         {link.description}
                       </p>
                     )}

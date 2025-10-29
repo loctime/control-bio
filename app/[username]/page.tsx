@@ -180,7 +180,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
 
   return (
     <div
-      className="min-h-screen py-12 px-4"
+      className="min-h-screen py-6 sm:py-12 px-3 sm:px-4"
       style={{
         backgroundColor: theme.backgroundColor,
         color: theme.textColor,
@@ -189,11 +189,11 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
       <div className="max-w-2xl mx-auto">
         {/* Profile Card */}
         <div 
-          className="rounded-lg overflow-hidden shadow-2xl mb-8"
+          className="rounded-lg overflow-hidden shadow-2xl mb-6 sm:mb-8"
           style={{ backgroundColor: `${theme.backgroundColor}dd` }}
         >
           {/* Banner */}
-          <div className="relative h-48 w-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600">
+          <div className="relative h-32 sm:h-40 md:h-48 w-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600">
             {profile.bannerUrl ? (
               <img 
                 src={profile.bannerUrl} 
@@ -206,12 +206,12 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
           </div>
           
           {/* Profile Info */}
-          <div className="text-center mb-8 space-y-4 px-8 pb-8">
-            <div className="flex justify-center -mt-24">
-              <Avatar className="h-32 w-32 border-4 shadow-lg" style={{ borderColor: theme.backgroundColor }}>
+          <div className="text-center mb-6 sm:mb-8 space-y-3 sm:space-y-4 px-4 sm:px-8 pb-6 sm:pb-8">
+            <div className="flex justify-center -mt-16 sm:-mt-20 md:-mt-24">
+              <Avatar className="h-24 w-24 sm:h-28 sm:w-28 md:h-32 md:w-32 border-4 shadow-lg" style={{ borderColor: theme.backgroundColor }}>
                 <AvatarImage src={profile.avatarUrl || "/placeholder.svg"} alt={profile.displayName} />
                 <AvatarFallback
-                  className="text-3xl"
+                  className="text-xl sm:text-2xl md:text-3xl"
                   style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
                 >
                   {profile.displayName?.charAt(0)?.toUpperCase() || "U"}
@@ -219,18 +219,18 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
               </Avatar>
             </div>
             
-            <div className="text-center pt-4">
+            <div className="text-center pt-2 sm:pt-4">
               <div className="flex items-center justify-center gap-2 flex-wrap">
-                <h1 className="text-5xl font-bold">{profile.displayName}</h1>
-                <p className="opacity-60 text-xl">@{profile.username}</p>
+                <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold">{profile.displayName}</h1>
+                <p className="opacity-60 text-sm sm:text-base md:text-lg lg:text-xl">@{profile.username}</p>
               </div>
             </div>
-            {profile.bio && <p className="text-lg opacity-90 max-w-md mx-auto whitespace-pre-wrap">{profile.bio}</p>}
+            {profile.bio && <p className="text-sm sm:text-base md:text-lg opacity-90 max-w-md mx-auto whitespace-pre-wrap px-2">{profile.bio}</p>}
           </div>
         </div>
 
         {/* Links and Sections */}
-        <div className="space-y-4 max-w-md mx-auto">
+        <div className="space-y-4 max-w-md mx-auto px-2">
           <ExpandableSections 
             links={links} 
             sections={sections} 
@@ -239,8 +239,8 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-12 opacity-60">
-          <p className="text-sm">
+        <div className="text-center mt-8 sm:mt-12 opacity-60">
+          <p className="text-xs sm:text-sm">
             Creado con <span className="font-bold">ControlBio</span>
           </p>
         </div>
