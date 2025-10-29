@@ -46,7 +46,10 @@ export function GalleryManager({ userId, carousels, onRefresh }: GalleryManagerP
   const loadGallery = async () => {
     setLoading(true)
     try {
-      const files = await listFiles(null)
+      const folderId = await getControlBioFolder()
+      const galleryFolderId = await ensureFolderExists('Galería', folderId)
+      const files = await listFiles(galleryFolderId)
+      
       // Filtrar solo imágenes y videos
       const mediaFiles = files
         .filter(file => file.type === 'file' && 
