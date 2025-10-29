@@ -1,3 +1,13 @@
+import withPWA from 'next-pwa'
+
+const withPWAWrap = withPWA({
+  dest: 'public',
+  register: true,
+  skipWaiting: true,
+  disable: process.env.NODE_ENV === 'development',
+  reloadOnOnline: true,
+})
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
@@ -26,4 +36,4 @@ const nextConfig = {
   turbopack: {},
 }
 
-export default nextConfig
+export default withPWAWrap(nextConfig)

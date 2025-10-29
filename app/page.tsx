@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/auth-context"
 import { Spinner } from "@/components/ui/spinner"
+import { InstallPWAButton } from "@/components/InstallPWA"
 
 export default function HomePage() {
   const [loading, setLoading] = useState(false)
@@ -97,6 +98,7 @@ export default function HomePage() {
             Control<span className="text-primary">Bio</span>
           </h1>
           <div className="flex gap-2">
+            <InstallPWAButton className="text-xs sm:text-sm" />
             <Button variant="outline" size="sm" className="text-xs sm:text-sm" onClick={() => router.push("/dashboard")}>
               Dashboard
             </Button>
