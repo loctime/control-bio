@@ -4,7 +4,7 @@ import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import type { GalleryLayout, GalleryLayoutItem } from '@/types'
 
-const GALLERY_COLLECTION = 'apps/controlbio/galleries'
+const GALLERY_COLLECTION = 'apps/controlbio/galleryLayouts'
 
 export async function saveGalleryLayout(
   userId: string, 
