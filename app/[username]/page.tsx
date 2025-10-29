@@ -187,22 +187,46 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
       }}
     >
       <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8 space-y-4">
-          <Avatar className="h-24 w-24 mx-auto">
-            <AvatarImage src={profile.avatarUrl || "/placeholder.svg"} alt={profile.displayName} />
-            <AvatarFallback
-              className="text-2xl"
-              style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
-            >
-              {profile.displayName?.charAt(0)?.toUpperCase() || "U"}
-            </AvatarFallback>
-          </Avatar>
-          <div className="text-center">
-            <h1 className="text-5xl font-bold mb-2">{profile.displayName}</h1>
-            <p className="opacity-80 text-lg">@{profile.username}</p>
+        {/* Profile Card */}
+        <div 
+          className="rounded-lg overflow-hidden shadow-2xl mb-8"
+          style={{ backgroundColor: `${theme.backgroundColor}dd` }}
+        >
+          {/* Banner */}
+          <div className="relative h-48 w-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600">
+            {profile.bannerUrl ? (
+              <img 
+                src={profile.bannerUrl} 
+                alt="Banner"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500" />
+            )}
           </div>
-          {profile.bio && <p className="text-lg opacity-90 max-w-md mx-auto whitespace-pre-wrap">{profile.bio}</p>}
+          
+          {/* Profile Info */}
+          <div className="text-center mb-8 space-y-4 px-8 pb-8">
+            <div className="flex justify-center -mt-24">
+              <Avatar className="h-32 w-32 border-4 shadow-lg" style={{ borderColor: theme.backgroundColor }}>
+                <AvatarImage src={profile.avatarUrl || "/placeholder.svg"} alt={profile.displayName} />
+                <AvatarFallback
+                  className="text-3xl"
+                  style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
+                >
+                  {profile.displayName?.charAt(0)?.toUpperCase() || "U"}
+                </AvatarFallback>
+              </Avatar>
+            </div>
+            
+            <div className="text-center pt-4">
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                <h1 className="text-5xl font-bold">{profile.displayName}</h1>
+                <p className="opacity-60 text-xl">@{profile.username}</p>
+              </div>
+            </div>
+            {profile.bio && <p className="text-lg opacity-90 max-w-md mx-auto whitespace-pre-wrap">{profile.bio}</p>}
+          </div>
         </div>
 
         {/* Links and Sections */}

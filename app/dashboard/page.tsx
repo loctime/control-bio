@@ -73,6 +73,7 @@ export default function DashboardPage() {
   const [username, setUsername] = useState("")
   const [bio, setBio] = useState("")
   const [avatarUrl, setAvatarUrl] = useState("")
+  const [bannerUrl, setBannerUrl] = useState("")
 
   // Form state for theme
   const [backgroundColor, setBackgroundColor] = useState("#ffffff")
@@ -104,6 +105,11 @@ export default function DashboardPage() {
   const [avatarPreview, setAvatarPreview] = useState<string>("")
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   
+  // Banner upload state
+  const [bannerFile, setBannerFile] = useState<File | null>(null)
+  const [bannerPreview, setBannerPreview] = useState<string>("")
+  const [uploadingBanner, setUploadingBanner] = useState(false)
+  
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -129,6 +135,7 @@ export default function DashboardPage() {
           setUsername(data.username || "")
           setBio(data.bio || "")
           setAvatarUrl(data.avatarUrl || "")
+          setBannerUrl(data.bannerUrl || "")
           
           // Valores por defecto para el tema si no existe
           const defaultTheme = {
@@ -170,6 +177,7 @@ export default function DashboardPage() {
           setUsername(defaultProfile.username)
           setBio(defaultProfile.bio)
           setAvatarUrl(defaultProfile.avatarUrl)
+          setBannerUrl(defaultProfile.bannerUrl || "")
           setBackgroundColor(defaultProfile.theme?.backgroundColor || "#0a0a0a")
           setTextColor(defaultProfile.theme?.textColor || "#ffffff")
           setButtonColor(defaultProfile.theme?.buttonColor || "#ff6b35")
@@ -222,23 +230,27 @@ export default function DashboardPage() {
     loadProfile()
   }, [user, toast])
 
-  const handleAvatarUpload = async (file: File) => {
+  // Función genérica para subir imágenes de perfil (avatar o banner)
+  const handleProfileImageUpload = async (file: File, type: 'avatar' | 'banner') => {
     if (!user) return
 
-    setUploadingAvatar(true)
+    const isLoading = type === 'avatar' ? setUploadingAvatar : setUploadingBanner
+    
+    isLoading(true)
     try {
       // 1. Obtener o crear la carpeta ControlBio en Firestore
       const controlBioFolderId = await getControlBioFolder()
       
-      // 2. Crear subcarpeta "Fotos de perfil" si no existe (Firestore)
-      const fotosPerfilFolderId = await ensureFolderExists("Fotos de perfil", controlBioFolderId)
+      // 2. Crear subcarpeta según el tipo de imagen
+      const folderName = type === 'avatar' ? 'Fotos de perfil' : 'Banners'
+      const imageFolderId = await ensureFolderExists(folderName, controlBioFolderId)
       
-      // 3. Subir archivo a ControlFile usando la API (igual que tab Archivos)
-      const fileId = await uploadFile(file, fotosPerfilFolderId, (progress) => {
-        console.log(`Subiendo avatar: ${progress}%`)
+      // 3. Subir archivo a ControlFile usando la API
+      const fileId = await uploadFile(file, imageFolderId, (progress) => {
+        console.log(`Subiendo ${type}: ${progress}%`)
       })
       
-      // 4. Obtener URL presignada para vista previa (API de ControlFile)
+      // 4. Obtener URL presignada para vista previa
       const token = await user.getIdToken()
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'https://controlfile.onrender.com'}/api/files/presign-get`, {
         method: 'POST',
@@ -256,15 +268,20 @@ export default function DashboardPage() {
       const { downloadUrl } = await response.json()
       
       // 5. Actualizar estado local con la URL presignada
-      setAvatarPreview(downloadUrl)
-      setAvatarUrl(downloadUrl)
+      if (type === 'avatar') {
+        setAvatarPreview(downloadUrl)
+        setAvatarUrl(downloadUrl)
+      } else {
+        setBannerPreview(downloadUrl)
+        setBannerUrl(downloadUrl)
+      }
       
-      // 6. Guardar automáticamente el avatar en el perfil del usuario
+      // 6. Guardar automáticamente en el perfil del usuario
       if (profile) {
         const updatedProfile: UserProfile = {
           ...profile,
           uid: user.uid,
-          avatarUrl: downloadUrl,
+          ...(type === 'avatar' ? { avatarUrl: downloadUrl } : { bannerUrl: downloadUrl }),
           updatedAt: new Date(),
         }
 
@@ -273,21 +290,26 @@ export default function DashboardPage() {
         setProfile(updatedProfile)
       }
       
+      const typeLabel = type === 'avatar' ? 'Avatar' : 'Banner'
       toast({
-        title: "Avatar actualizado",
+        title: `${typeLabel} actualizado`,
         description: "La imagen se ha guardado correctamente",
       })
     } catch (error: any) {
-      console.error("Error uploading avatar:", error)
+      console.error(`Error uploading ${type}:`, error)
+      const typeLabel = type === 'avatar' ? 'Avatar' : 'Banner'
       toast({
         title: "Error",
-        description: "No se pudo subir la imagen a ControlFile",
+        description: `No se pudo subir el ${typeLabel.toLowerCase()} a ControlFile`,
         variant: "destructive",
       })
     } finally {
-      setUploadingAvatar(false)
+      isLoading(false)
     }
   }
+
+  const handleAvatarUpload = (file: File) => handleProfileImageUpload(file, 'avatar')
+  const handleBannerUpload = (file: File) => handleProfileImageUpload(file, 'banner')
 
   const handleSaveField = async (field: string) => {
     if (!user || !profile) return
@@ -301,6 +323,7 @@ export default function DashboardPage() {
         username: field === 'username' ? username : profile.username,
         bio: field === 'bio' ? bio : profile.bio,
         avatarUrl: field === 'avatar' ? (avatarPreview || avatarUrl) : profile.avatarUrl,
+        bannerUrl: field === 'banner' ? (bannerPreview || bannerUrl) : (profile.bannerUrl || ""),
         updatedAt: new Date(),
       }
 
@@ -342,11 +365,15 @@ export default function DashboardPage() {
       } else if (field === 'bio') {
         setBio(profile.bio)
         setEditingBio(false)
-      } else if (field === 'avatar') {
-        setAvatarUrl(profile.avatarUrl)
-        setAvatarPreview("")
-        setAvatarFile(null)
-      }
+      } else         if (field === 'avatar') {
+          setAvatarUrl(profile.avatarUrl)
+          setAvatarPreview("")
+          setAvatarFile(null)
+        } else if (field === 'banner') {
+          setBannerUrl(profile.bannerUrl || "")
+          setBannerPreview("")
+          setBannerFile(null)
+        }
     }
   }
 
@@ -866,16 +893,88 @@ export default function DashboardPage() {
               <CardContent>
                 {/* Vista previa del perfil con controles integrados */}
                 <div 
-                  className="rounded-lg p-8 text-center space-y-6 min-h-[500px] flex flex-col justify-center relative"
+                  className="rounded-lg overflow-hidden relative"
                   style={{ 
                     backgroundColor: profile?.theme?.backgroundColor || "#1f1f1f",
                     color: profile?.theme?.textColor || "#f5f5f5"
                   }}
                 >
+                  {/* Banner */}
+                  <div className="relative h-48 w-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 group/banner">
+                    {bannerPreview || bannerUrl ? (
+                      <img 
+                        src={bannerPreview || bannerUrl} 
+                        alt="Banner"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500" />
+                    )}
+                    
+                    {/* Botones para editar banner */}
+                    <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover/banner:opacity-100 transition-opacity">
+                      <div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              setBannerFile(file)
+                              handleBannerUpload(file)
+                            }
+                          }}
+                          className="hidden"
+                          id="banner-upload"
+                        />
+                        <label
+                          htmlFor="banner-upload"
+                          className="inline-flex items-center justify-center w-8 h-8 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors cursor-pointer text-xs"
+                          title="Subir banner"
+                        >
+                          {uploadingBanner ? (
+                            <Spinner className="h-3 w-3" />
+                          ) : (
+                            <Upload className="h-3 w-3" />
+                          )}
+                        </label>
+                      </div>
+                      
+                      <button
+                        onClick={() => {
+                          const url = prompt("Pega la URL del banner:")
+                          if (url) {
+                            setBannerUrl(url)
+                            setBannerPreview(url)
+                            handleSaveField('banner')
+                          }
+                        }}
+                        className="inline-flex items-center justify-center w-8 h-8 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors text-xs"
+                        title="URL del banner"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          setBannerUrl("")
+                          setBannerPreview("")
+                          handleSaveField('banner')
+                        }}
+                        className="inline-flex items-center justify-center w-8 h-8 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors text-xs"
+                        title="Eliminar banner"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Contenido del perfil */}
+                  <div className="p-8 text-center space-y-6 -mt-24">
                   {/* Avatar con botones pequeños */}
                   <div className="flex justify-center">
                     <div className="relative group">
-                      <Avatar className="h-24 w-24">
+                      <Avatar className="h-32 w-32 border-4 border-white shadow-lg">
                         <AvatarImage 
                           src={avatarPreview || profile?.avatarUrl} 
                           alt={profile?.displayName} 
@@ -966,7 +1065,10 @@ export default function DashboardPage() {
                         </div>
                       ) : (
                         <div className="relative inline-block">
-                          <h1 className="text-2xl font-bold mb-2">{profile?.displayName || "Usuario"}</h1>
+                          <div className="flex items-center justify-center gap-2 flex-wrap">
+                            <h1 className="text-2xl font-bold">{profile?.displayName || "Usuario"}</h1>
+                            <p className="text-lg opacity-60">@{profile?.username || "usuario"}</p>
+                          </div>
                           <button
                             onClick={() => {
                               setEditingDisplayName(true)
@@ -980,8 +1082,8 @@ export default function DashboardPage() {
                       )}
                     </div>
 
-                    {/* Username editable */}
-                    <div className="relative group">
+                    {/* Username editable (ahora oculto ya que está junto al nombre) */}
+                    <div className="relative group hidden">
                       {editingUsername ? (
                         <div className="space-y-2">
                           <div className="relative">
@@ -1074,7 +1176,6 @@ export default function DashboardPage() {
                       </div>
                     )}
                   </div>
-
                   
                   {/* Enlaces organizados por secciones */}
                   <div className="space-y-6 max-w-md mx-auto">
@@ -1360,8 +1461,7 @@ export default function DashboardPage() {
                       )
                     })()}
                   </div>
-
-                  
+                  </div>
                 </div>
               </CardContent>
             </Card>

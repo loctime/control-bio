@@ -5,6 +5,7 @@ export interface UserProfile {
   email: string
   bio: string
   avatarUrl: string
+  bannerUrl?: string
   theme?: {
     backgroundColor: string
     textColor: string
