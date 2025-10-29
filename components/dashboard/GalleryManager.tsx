@@ -4,7 +4,9 @@ import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { CarouselDialog } from './CarouselDialog'
-import { listFiles, uploadFile, getDownloadUrl, ensureFolderExists, getControlBioFolder } from '@/lib/controlfile-client'
+import { uploadFile, getDownloadUrl, ensureFolderExists, getControlBioFolder } from '@/lib/controlfile-client'
+import { collection, query, where, getDocs, orderBy, addDoc } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 import { createCarousel } from '@/lib/carousel-actions'
 import { GripVertical, Upload, Trash2, Image as ImageIcon, Plus, X, Check, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
@@ -18,6 +20,7 @@ interface GalleryItem {
   name: string
   mime?: string
   url?: string
+  placeholder?: boolean
 }
 
 interface GalleryManagerProps {
@@ -46,20 +49,34 @@ export function GalleryManager({ userId, carousels, onRefresh }: GalleryManagerP
   const loadGallery = async () => {
     setLoading(true)
     try {
+      // Obtener el ID de la carpeta Galería
       const folderId = await getControlBioFolder()
       const galleryFolderId = await ensureFolderExists('Galería', folderId)
-      const files = await listFiles(galleryFolderId)
       
-      // Filtrar solo imágenes y videos
-      const mediaFiles = files
-        .filter(file => file.type === 'file' && 
-          (file.mime?.startsWith('image/') || file.mime?.startsWith('video/')))
-        .map(file => ({
-          id: file.id || file.fileId,
-          fileId: file.id || file.fileId,
-          name: file.name,
-          mime: file.mime,
-        } as GalleryItem))
+      // Leer archivos desde la colección 'files' de Firestore
+      const filesQuery = query(
+        collection(db, 'files'),
+        where('userId', '==', userId),
+        where('deletedAt', '==', null), // Solo archivos no eliminados
+        orderBy('createdAt', 'desc')
+      )
+      
+      const filesSnap = await getDocs(filesQuery)
+      const files = filesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+      
+      // Filtrar archivos de la galería (que están en la subcarpeta "Galería")
+      const galleryFiles = files.filter(file => 
+        file.ancestors && file.ancestors.includes(galleryFolderId) &&
+        (file.mime?.startsWith('image/') || file.mime?.startsWith('video/'))
+      )
+      
+      // Mapear a GalleryItem
+      const mediaFiles = galleryFiles.map(file => ({
+        id: file.id,
+        fileId: file.id,
+        name: file.name,
+        mime: file.mime,
+      } as GalleryItem))
       
       // Cargar URLs de vista previa en paralelo
       const itemsWithUrls = await Promise.all(
@@ -69,7 +86,15 @@ export function GalleryManager({ userId, carousels, onRefresh }: GalleryManagerP
             return { ...item, url }
           } catch (error) {
             console.error(`Error cargando URL para ${item.fileId}:`, error)
-            return item
+            // En desarrollo local, mostrar placeholder si hay error de CORS
+            if (error.message?.includes('CORS') || error.message?.includes('Failed to fetch')) {
+              return { 
+                ...item, 
+                url: undefined,
+                placeholder: true // Marcar como placeholder para mostrar en desarrollo
+              }
+            }
+            return { ...item, url: undefined }
           }
         })
       )
@@ -371,11 +396,11 @@ export function GalleryManager({ userId, carousels, onRefresh }: GalleryManagerP
             return (
               <Card
                 key={item.id}
-                className={`relative transition-all ${
+                className={`relative transition-all duration-200 ${
                   isSelectionMode ? 'cursor-pointer' : 'cursor-move'
-                } hover:border-primary ${
-                  isSelected ? 'border-primary border-2 ring-2 ring-primary/20' : ''
-                } ${isDragging ? 'opacity-50' : ''}`}
+                } hover:border-primary hover:shadow-lg hover:-translate-y-1 ${
+                  isSelected ? 'border-primary border-2 ring-2 ring-primary/20 shadow-lg' : ''
+                } ${isDragging ? 'opacity-50 scale-95' : ''}`}
                 draggable={!isSelectionMode}
                 onDragStart={() => handleDragStart(index)}
                 onDragOver={(e) => handleDragOver(e, index)}
@@ -389,7 +414,7 @@ export function GalleryManager({ userId, carousels, onRefresh }: GalleryManagerP
                         <img
                           src={item.url}
                           alt={item.name}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                         />
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center bg-gray-800">
@@ -437,13 +462,16 @@ export function GalleryManager({ userId, carousels, onRefresh }: GalleryManagerP
                     {!isSelectionMode && (
                       <div className="absolute top-0 left-0 right-0 bottom-0 opacity-0 group-hover:opacity-100 transition-opacity bg-black/20" />
                     )}
-                  </div>
-                  
-                  {/* Nombre del archivo */}
-                  <div className="p-2">
-                    <p className="text-xs truncate" title={item.name}>
-                      {item.name}
-                    </p>
+
+                    {/* Efecto de zoom al hover */}
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                    
+                    {/* Nombre del archivo (solo visible en hover) */}
+                    <div className="absolute bottom-2 left-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <p className="text-xs text-white truncate drop-shadow-lg" title={item.name}>
+                        {item.name}
+                      </p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
