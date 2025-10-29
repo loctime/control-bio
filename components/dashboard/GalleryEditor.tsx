@@ -23,7 +23,7 @@ import {
   orderBy 
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { getDownloadUrl } from '@/lib/controlfile-client'
+import { getDownloadUrl, getControlBioFolder, ensureFolderExists } from '@/lib/controlfile-client'
 import { 
   Save, 
   Eye, 
@@ -89,8 +89,27 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
     }
   }
 
+  // Limitador de concurrencia simple
+  async function withConcurrencyLimit<T>(tasks: (() => Promise<T>)[], limit = 5): Promise<T[]> {
+    const results: T[] = []
+    let index = 0
+    async function worker() {
+      while (index < tasks.length) {
+        const current = index++
+        results[current] = await tasks[current]()
+      }
+    }
+    const workers = Array.from({ length: Math.min(limit, tasks.length) }, () => worker())
+    await Promise.all(workers)
+    return results
+  }
+
   const loadGalleryFiles = async () => {
     try {
+      // Resolver carpeta Galería dinámicamente
+      const rootFolderId = await getControlBioFolder()
+      const galleryFolderId = await ensureFolderExists('Galería', rootFolderId)
+
       // Leer archivos desde la colección 'files' de Firestore
       const filesQuery = query(
         collection(db, 'files'),
@@ -104,24 +123,34 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
       
       // Filtrar archivos de la galería (que están en la subcarpeta "Galería")
       const galleryFiles = filesData.filter(file => 
-        file.ancestors && file.ancestors.includes('folder-1761714238477-gb2vxpi78') &&
+        file.ancestors && file.ancestors.includes(galleryFolderId) &&
         (file.mime?.startsWith('image/') || file.mime?.startsWith('video/'))
       )
       
-      // Cargar URLs de descarga en paralelo
-      const filesWithUrls = await Promise.all(
-        galleryFiles.map(async (file) => {
-          try {
-            const url = await getDownloadUrl(file.id)
-            return { ...file, url }
-          } catch (error) {
-            console.error(`Error cargando URL para ${file.id}:`, error)
-            return { ...file, url: undefined, placeholder: true }
-          }
-        })
-      )
-      
-      setFiles(filesWithUrls)
+      // 1) Establecer metadatos sin bloquear por URLs
+      setFiles(galleryFiles)
+
+      // 2) Pedir URLs SOLO para los que están ya en el layout, con concurrencia limitada
+      const layoutFileIds = new Set((layout?.items || []).map(i => i.fileId))
+      const filesNeedingUrl = galleryFiles.filter(f => layoutFileIds.has(f.id))
+
+      const tasks = filesNeedingUrl.map((file) => async () => {
+        try {
+          const url = await getDownloadUrl(file.id)
+          return { id: file.id, url }
+        } catch (error) {
+          console.error(`Error cargando URL para ${file.id}:`, error)
+          return { id: file.id, url: undefined, placeholder: true as const }
+        }
+      })
+
+      const urlResults = await withConcurrencyLimit(tasks, 5)
+      // 3) Mergear URLs en estado
+      setFiles(prev => prev.map(f => {
+        const match = urlResults.find(r => r.id === f.id)
+        if (!match) return f
+        return { ...f, url: match.url, placeholder: match.url ? undefined : true }
+      }))
     } catch (error) {
       console.error('Error cargando archivos:', error)
       throw error
