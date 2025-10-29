@@ -19,12 +19,13 @@ interface CarouselDialogProps {
   onOpenChange: (open: boolean) => void
   editingCarousel?: Carousel | null
   userId: string
+  preselectedImages?: string[] // Imágenes preseleccionadas desde la galería
   onSuccess: () => void
 }
 
 type Step = 'details' | 'select' | 'order'
 
-export function CarouselDialog({ open, onOpenChange, editingCarousel, userId, onSuccess }: CarouselDialogProps) {
+export function CarouselDialog({ open, onOpenChange, editingCarousel, userId, preselectedImages, onSuccess }: CarouselDialogProps) {
   const [step, setStep] = useState<Step>('details')
   const [saving, setSaving] = useState(false)
   
@@ -48,10 +49,15 @@ export function CarouselDialog({ open, onOpenChange, editingCarousel, userId, on
       setType(editingCarousel.type)
       setSelectedImages(editingCarousel.imageFileIds)
       setOrderedImages(editingCarousel.imageFileIds)
+    } else if (preselectedImages && preselectedImages.length > 0) {
+      // Si hay imágenes preseleccionadas desde la galería, usar esas
+      setSelectedImages(preselectedImages)
+      setOrderedImages(preselectedImages)
+      setStep('order') // Saltar directamente al paso de ordenar
     } else {
       resetForm()
     }
-  }, [editingCarousel, open])
+  }, [editingCarousel, preselectedImages, open])
 
   const resetForm = () => {
     setStep('details')
@@ -235,6 +241,55 @@ export function CarouselDialog({ open, onOpenChange, editingCarousel, userId, on
           {/* Step 3: Order Images */}
           {step === 'order' && (
             <div className="space-y-4">
+              {/* Mostrar formulario si hay imágenes preseleccionadas (desde la galería) */}
+              {preselectedImages && preselectedImages.length > 0 && !editingCarousel && (
+                <div className="space-y-4 p-4 border rounded-lg mb-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nombre del carrusel</Label>
+                    <Input
+                      id="name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Ej: Mis Proyectos"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Descripción (opcional)</Label>
+                    <Textarea
+                      id="description"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Breve descripción del carrusel"
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Tipo de carrusel</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {CAROUSEL_TYPES.map((carouselType) => (
+                        <Card
+                          key={carouselType.id}
+                          className={`cursor-pointer transition-all hover:border-primary ${
+                            type === carouselType.id ? 'border-primary border-2' : ''
+                          }`}
+                          onClick={() => setType(carouselType.id)}
+                        >
+                          <CardContent className="p-4">
+                            <div className="text-3xl mb-2 text-center">{carouselType.icon}</div>
+                            <h3 className="font-medium text-sm">{carouselType.name}</h3>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {carouselType.description}
+                            </p>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <p className="text-sm text-muted-foreground">
                 Arrastra las imágenes para reordenarlas
               </p>
@@ -289,7 +344,10 @@ export function CarouselDialog({ open, onOpenChange, editingCarousel, userId, on
               </Button>
             )}
             {step === 'order' && (
-              <Button onClick={handleSave} disabled={saving || orderedImages.length === 0}>
+              <Button 
+                onClick={handleSave} 
+                disabled={saving || orderedImages.length === 0 || !name.trim()}
+              >
                 {saving ? 'Guardando...' : editingCarousel ? 'Actualizar' : 'Crear'}
               </Button>
             )}

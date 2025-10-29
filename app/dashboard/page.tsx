@@ -43,6 +43,7 @@ import type { UserProfile, Link, Section, Carousel } from "@/types"
 import { ExternalLink, GripVertical, Pencil, Plus, Trash2, Eye, Copy, FolderOpen, Upload, X } from "lucide-react"
 import { ControlBioFileManager } from "@/components/ControlBioFileManager"
 import { CarouselManager } from "@/components/dashboard/CarouselManager"
+import { GalleryManager } from "@/components/dashboard/GalleryManager"
 import { 
   getControlBioFolder, 
   uploadFile, 
@@ -876,7 +877,7 @@ export default function DashboardPage() {
           <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 mt-3 sm:mt-4 text-xs sm:text-sm gap-1">
             <TabsTrigger value="profile" className="py-1.5 sm:py-2">Perfil</TabsTrigger>
             <TabsTrigger value="links" className="py-1.5 sm:py-2">Enlaces</TabsTrigger>
-            <TabsTrigger value="carousels" className="py-1.5 sm:py-2">Carruseles</TabsTrigger>
+            <TabsTrigger value="gallery" className="py-1.5 sm:py-2">Galería</TabsTrigger>
             <TabsTrigger value="files" className="py-1.5 sm:py-2">Archivos</TabsTrigger>
             <TabsTrigger value="theme" className="py-1.5 sm:py-2">Tema</TabsTrigger>
             <TabsTrigger value="security" className="py-1.5 sm:py-2">Seguridad</TabsTrigger>
@@ -1601,26 +1602,18 @@ export default function DashboardPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="carousels" className="space-y-6 mt-0">
-            <Card>
-              <CardHeader>
-                <CardTitle>Carruseles</CardTitle>
-                <CardDescription>Gestiona tus carruseles de imágenes</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <CarouselManager 
-                  carousels={carousels} 
-                  userId={user.uid}
-                  onRefresh={async () => {
-                    if (!user) return
-                    const carouselsQuery = query(collection(db, "apps/controlbio/carousels"), where("userId", "==", user.uid), orderBy("order", "asc"))
-                    const carouselsSnap = await getDocs(carouselsQuery)
-                    const carouselsData = carouselsSnap.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as Carousel)
-                    setCarousels(carouselsData)
-                  }}
-                />
-              </CardContent>
-            </Card>
+          <TabsContent value="gallery" className="space-y-6 mt-0">
+            <GalleryManager 
+              userId={user.uid}
+              carousels={carousels}
+              onRefresh={async () => {
+                if (!user) return
+                const carouselsQuery = query(collection(db, "apps/controlbio/carousels"), where("userId", "==", user.uid), orderBy("order", "asc"))
+                const carouselsSnap = await getDocs(carouselsQuery)
+                const carouselsData = carouselsSnap.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as Carousel)
+                setCarousels(carouselsData)
+              }}
+            />
           </TabsContent>
 
           <TabsContent value="files" className="space-y-6 mt-0">
