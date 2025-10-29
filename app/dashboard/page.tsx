@@ -39,9 +39,10 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import type { UserProfile, Link, Section } from "@/types"
+import type { UserProfile, Link, Section, Carousel } from "@/types"
 import { ExternalLink, GripVertical, Pencil, Plus, Trash2, Eye, Copy, FolderOpen, Upload, X } from "lucide-react"
 import { ControlBioFileManager } from "@/components/ControlBioFileManager"
+import { CarouselManager } from "@/components/dashboard/CarouselManager"
 import { 
   getControlBioFolder, 
   uploadFile, 
@@ -57,6 +58,7 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [links, setLinks] = useState<Link[]>([])
   const [sections, setSections] = useState<Section[]>([])
+  const [carousels, setCarousels] = useState<Carousel[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -93,6 +95,8 @@ export default function DashboardPage() {
   const [editingSection, setEditingSection] = useState<Section | null>(null)
   const [sectionTitle, setSectionTitle] = useState("")
   const [sectionDescription, setSectionDescription] = useState("")
+  const [sectionType, setSectionType] = useState<'links' | 'carousel'>('links')
+  const [sectionCarouselId, setSectionCarouselId] = useState<string>("")
   const [sectionActive, setSectionActive] = useState(true)
 
   // Avatar upload state
@@ -187,6 +191,14 @@ export default function DashboardPage() {
         const sectionsData = sectionsSnap.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as Section)
         setSections(sectionsData)
         console.log("Loaded sections:", sectionsData)
+
+        // Load carousels
+        console.log("Loading carousels for user:", user.uid)
+        const carouselsQuery = query(collection(db, "apps/controlbio/carousels"), where("userId", "==", user.uid), orderBy("order", "asc"))
+        const carouselsSnap = await getDocs(carouselsQuery)
+        const carouselsData = carouselsSnap.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as Carousel)
+        setCarousels(carouselsData)
+        console.log("Loaded carousels:", carouselsData)
       } catch (error) {
         console.error("Error loading profile:", error)
         const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
@@ -401,11 +413,15 @@ export default function DashboardPage() {
       setEditingSection(section)
       setSectionTitle(section.title)
       setSectionDescription(section.description || "")
+      setSectionType(section.type || 'links')
+      setSectionCarouselId(section.carouselId || "")
       setSectionActive(section.isActive)
     } else {
       setEditingSection(null)
       setSectionTitle("")
       setSectionDescription("")
+      setSectionType('links')
+      setSectionCarouselId("")
       setSectionActive(true)
     }
     setSectionDialogOpen(true)
@@ -554,12 +570,22 @@ export default function DashboardPage() {
       if (editingSection) {
         // Update existing section
         const sectionRef = doc(db, "apps/controlbio/sections", editingSection.id)
-        await updateDoc(sectionRef, {
+        const updateData: any = {
           title: sectionTitle,
           description: sectionDescription,
           isActive: sectionActive,
           updatedAt: new Date(),
-        })
+        }
+
+        if (sectionType === 'carousel') {
+          updateData.type = 'carousel'
+          updateData.carouselId = sectionCarouselId || undefined
+        } else {
+          updateData.type = 'links'
+          updateData.carouselId = undefined
+        }
+
+        await updateDoc(sectionRef, updateData)
 
         setSections(
           sections.map((s) =>
@@ -568,6 +594,8 @@ export default function DashboardPage() {
                   ...s,
                   title: sectionTitle,
                   description: sectionDescription,
+                  type: sectionType,
+                  carouselId: sectionType === 'carousel' ? sectionCarouselId : undefined,
                   isActive: sectionActive,
                   updatedAt: new Date().toISOString(),
                 }
@@ -581,7 +609,7 @@ export default function DashboardPage() {
         })
       } else {
         // Create new section
-        const newSection = {
+        const newSection: any = {
           userId: user.uid,
           title: sectionTitle,
           description: sectionDescription,
@@ -589,6 +617,13 @@ export default function DashboardPage() {
           order: sections.length,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
+        }
+
+        if (sectionType === 'carousel') {
+          newSection.type = 'carousel'
+          newSection.carouselId = sectionCarouselId || undefined
+        } else {
+          newSection.type = 'links'
         }
 
         console.log("Creating new section:", newSection)
@@ -810,9 +845,10 @@ export default function DashboardPage() {
 
       <main className="container mx-auto px-4 max-w-4xl">
         <Tabs defaultValue="profile" className="space-y-0">
-          <TabsList className="grid w-full grid-cols-5 mt-4">
+          <TabsList className="grid w-full grid-cols-6 mt-4">
             <TabsTrigger value="profile">Perfil</TabsTrigger>
             <TabsTrigger value="links">Enlaces</TabsTrigger>
+            <TabsTrigger value="carousels">Carruseles</TabsTrigger>
             <TabsTrigger value="files">Archivos</TabsTrigger>
             <TabsTrigger value="theme">Personalización</TabsTrigger>
             <TabsTrigger value="security">Seguridad</TabsTrigger>
@@ -1462,6 +1498,28 @@ export default function DashboardPage() {
             </Card>
           </TabsContent>
 
+          <TabsContent value="carousels" className="space-y-6 mt-0">
+            <Card>
+              <CardHeader>
+                <CardTitle>Carruseles</CardTitle>
+                <CardDescription>Gestiona tus carruseles de imágenes</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CarouselManager 
+                  carousels={carousels} 
+                  userId={user.uid}
+                  onRefresh={async () => {
+                    if (!user) return
+                    const carouselsQuery = query(collection(db, "apps/controlbio/carousels"), where("userId", "==", user.uid), orderBy("order", "asc"))
+                    const carouselsSnap = await getDocs(carouselsQuery)
+                    const carouselsData = carouselsSnap.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as Carousel)
+                    setCarousels(carouselsData)
+                  }}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="files" className="space-y-6 mt-0">
             <ControlBioFileManager />
           </TabsContent>
@@ -1720,6 +1778,41 @@ export default function DashboardPage() {
                 rows={2}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="sectionType">Tipo de sección</Label>
+              <Select value={sectionType} onValueChange={(value: 'links' | 'carousel') => setSectionType(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="links">Enlaces</SelectItem>
+                  <SelectItem value="carousel">Carrusel</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {sectionType === 'carousel' && (
+              <div className="space-y-2">
+                <Label htmlFor="sectionCarousel">Seleccionar Carrusel</Label>
+                <Select value={sectionCarouselId} onValueChange={setSectionCarouselId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona un carrusel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {carousels.length === 0 ? (
+                      <SelectItem value="" disabled>
+                        No hay carruseles disponibles
+                      </SelectItem>
+                    ) : (
+                      carousels.map((carousel) => (
+                        <SelectItem key={carousel.id} value={carousel.id}>
+                          {carousel.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <Label htmlFor="sectionActive">Sección activa</Label>
               <Switch id="sectionActive" checked={sectionActive} onCheckedChange={setSectionActive} />

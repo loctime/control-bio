@@ -119,6 +119,49 @@ service cloud.firestore {
                     && request.resource.data.isActive is bool;
     }
     
+    // Colección de carruseles para ControlBio
+    match /apps/controlbio/carousels/{carouselId} {
+      // Lectura: Temporarily allow all authenticated users to read (debug)
+      // TODO: Restrict to owner only and active public carousels
+      allow read: if isAuthenticated();
+      
+      // Escritura: Solo el dueño puede crear/editar/eliminar sus carruseles
+      allow write: if isAuthenticated() && 
+                      (resource.data.userId == request.auth.uid || 
+                       request.resource.data.userId == request.auth.uid);
+      
+      // Validación de datos para creación
+      allow create: if isAuthenticated() 
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() >= 1
+                    && request.resource.data.name.size() <= 100
+                    && request.resource.data.type is string
+                    && request.resource.data.type in ['horizontal', 'grid', 'masonry', 'card']
+                    && request.resource.data.imageFileIds is list
+                    && request.resource.data.order is number
+                    && request.resource.data.isActive is bool
+                    && request.resource.data.createdAt is string
+                    && request.resource.data.updatedAt is string;
+      
+      // Validación de datos para actualización
+      allow update: if isAuthenticated() 
+                    && request.auth.uid == resource.data.userId
+                    && request.resource.data.userId == resource.data.userId
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() >= 1
+                    && request.resource.data.name.size() <= 100
+                    && request.resource.data.type is string
+                    && request.resource.data.type in ['horizontal', 'grid', 'masonry', 'card']
+                    && request.resource.data.imageFileIds is list
+                    && request.resource.data.order is number
+                    && request.resource.data.isActive is bool
+                    && request.resource.data.updatedAt is string;
+      
+      // Eliminación: Solo el dueño puede eliminar
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+    
     // ===== REGLAS PARA CONTROLDAT (RED SOCIAL) =====
     
     match /apps/controlDat {

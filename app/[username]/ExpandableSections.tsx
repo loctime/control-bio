@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { ExternalLink, ChevronDown, ChevronRight } from "lucide-react"
 import type { Link, Section } from "@/types"
+import { CarouselSection } from "@/components/CarouselSection"
 
 interface ExpandableSectionsProps {
   links: Link[]
@@ -112,9 +113,34 @@ export function ExpandableSections({ links, sections = [], theme }: ExpandableSe
         </div>
       )}
 
-      {/* Secciones con enlaces */}
+      {/* Secciones */}
       {sections.map((section) => {
         const sectionLinks = linksBySection[section.id] || []
+        
+        // Si es un carrusel, renderizar directamente
+        if (section.type === 'carousel' && section.carouselId) {
+          return (
+            <div key={section.id} className="space-y-2">
+              {/* Título de la sección */}
+              <div 
+                className="w-full p-3 rounded-lg"
+                style={{
+                  backgroundColor: theme.buttonColor + "20",
+                  border: `1px solid ${theme.buttonColor}40`,
+                }}
+              >
+                <span className="font-medium text-lg" style={{ color: theme.textColor }}>
+                  {section.title}
+                </span>
+              </div>
+              
+              {/* Carrusel */}
+              <CarouselSection carouselId={section.carouselId} theme={theme} />
+            </div>
+          )
+        }
+
+        // Sección de enlaces (expandible)
         if (sectionLinks.length === 0) return null
 
         const isExpanded = expandedSections.has(section.id)
