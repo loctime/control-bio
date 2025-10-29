@@ -58,3 +58,32 @@ export interface Section {
   createdAt: string
   updatedAt: string
 }
+
+export interface GalleryLayout {
+  id: string
+  userId: string
+  items: GalleryLayoutItem[]
+  settings: {
+    gridSize: number // Tamaño base del grid (ej: 100px)
+    gap: number // Espacio entre elementos
+    columns: number // Número de columnas
+  }
+  isPublic: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface GalleryLayoutItem {
+  fileId: string // ID del archivo en ControlFile
+  x: number // Posición en el grid (columnas)
+  y: number // Posición en el grid (filas)
+  width: number // Ancho en unidades de grid
+  height: number // Alto en unidades de grid
+  zIndex: number // Orden de capas
+  aspectRatio: string // '16:9', '9:16', '1:1', etc.
+  effects?: {
+    borderRadius?: number
+    shadow?: boolean
+    rotation?: number
+  }
+}

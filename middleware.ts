@@ -8,7 +8,7 @@ export function middleware(request: NextRequest) {
   const protectedRoutes = ['/dashboard']
   
   // Rutas públicas que no requieren autenticación
-  const publicRoutes = ['/', '/[username]']
+  const publicRoutes = ['/', '/[username]', '/[username]/gallery']
   
   // Si es una ruta protegida, permitir que el cliente maneje la autenticación
   if (protectedRoutes.some(route => pathname.startsWith(route))) {
