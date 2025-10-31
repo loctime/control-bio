@@ -44,6 +44,9 @@ import { ExternalLink, GripVertical, Pencil, Plus, Trash2, Eye, Copy, FolderOpen
 import { ControlBioFileManager } from "@/components/ControlBioFileManager"
 import { CarouselManager } from "@/components/dashboard/CarouselManager"
 import { GalleryManager } from "@/components/dashboard/GalleryManager"
+import { LinkDialog } from "./components/LinkDialog"
+import { SectionDialog } from "./components/SectionDialog"
+import { DashboardHeader } from "./components/DashboardHeader"
 import { 
   getControlBioFolder, 
   uploadFile, 
@@ -51,6 +54,8 @@ import {
   ensureFolderExists 
 } from "@/lib/controlfile-client"
 import { useDragAndDrop } from "@/hooks/useDragAndDrop"
+import { useLinks } from "@/hooks/useLinks"
+import { useSections } from "@/hooks/useSections"
 
 export default function DashboardPage() {
   const { user, loading: authLoading, signOut } = useAuth()
@@ -856,25 +861,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between gap-2">
-          <h1 className="text-lg sm:text-xl md:text-2xl font-bold truncate">
-            Control<span className="text-primary">Bio</span>
-          </h1>
-          <div className="flex gap-1 sm:gap-2 flex-shrink-0">
-            <Button variant="outline" size="sm" className="text-xs sm:text-sm px-2 sm:px-3" asChild>
-              <NextLink href={`/${profile.username}`}>
-                <Eye className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Ver perfil</span>
-              </NextLink>
-            </Button>
-            <Button variant="outline" size="sm" className="text-xs sm:text-sm px-2 sm:px-3" onClick={handleSignOut}>
-              <span className="hidden sm:inline">Cerrar sesión</span>
-              <span className="sm:hidden">Salir</span>
-            </Button>
-          </div>
-        </div>
-      </header>
+      <DashboardHeader profile={profile} onSignOut={handleSignOut} />
 
       <main className="container mx-auto px-3 sm:px-4 max-w-4xl">
         <Tabs defaultValue="profile" className="space-y-0">
@@ -1767,167 +1754,43 @@ export default function DashboardPage() {
         </Tabs>
       </main>
 
-      <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingLink ? "Editar enlace" : "Nuevo enlace"}</DialogTitle>
-            <DialogDescription>
-              {editingLink ? "Modifica los detalles del enlace" : "Agrega un nuevo enlace a tu perfil"}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="linkTitle">Título</Label>
-              <Input
-                id="linkTitle"
-                value={linkTitle}
-                onChange={(e) => setLinkTitle(e.target.value)}
-                placeholder="Mi sitio web"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="linkUrl">URL</Label>
-              <Input
-                id="linkUrl"
-                type="url"
-                value={linkUrl}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                placeholder="https://ejemplo.com"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="linkDescription">Descripción (opcional)</Label>
-              <Textarea
-                id="linkDescription"
-                value={linkDescription}
-                onChange={(e) => setLinkDescription(e.target.value)}
-                placeholder="Descripción breve del enlace"
-                rows={2}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="linkType">Tipo</Label>
-              <Select value={linkType} onValueChange={(value: "external" | "internal") => setLinkType(value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="external">Externo</SelectItem>
-                  <SelectItem value="internal">Interno</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="linkSection">Sección (opcional)</Label>
-              <Select value={linkSectionId} onValueChange={setLinkSectionId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sin sección" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Sin sección</SelectItem>
-                  {sections.filter(s => s.isActive).map((section) => (
-                    <SelectItem key={section.id} value={section.id}>
-                      {section.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="linkActive">Enlace activo</Label>
-              <Switch id="linkActive" checked={linkActive} onCheckedChange={setLinkActive} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setLinkDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSaveLink} disabled={!linkTitle || !linkUrl}>
-              {editingLink ? "Actualizar" : "Crear"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <LinkDialog
+        open={linkDialogOpen}
+        onOpenChange={setLinkDialogOpen}
+        editingLink={editingLink}
+        onSave={handleSaveLink}
+        linkTitle={linkTitle}
+        setLinkTitle={setLinkTitle}
+        linkUrl={linkUrl}
+        setLinkUrl={setLinkUrl}
+        linkDescription={linkDescription}
+        setLinkDescription={setLinkDescription}
+        linkType={linkType}
+        setLinkType={setLinkType}
+        linkActive={linkActive}
+        setLinkActive={setLinkActive}
+        linkSectionId={linkSectionId}
+        setLinkSectionId={setLinkSectionId}
+        sections={sections}
+      />
 
-      {/* Diálogo de secciones */}
-      <Dialog open={sectionDialogOpen} onOpenChange={setSectionDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingSection ? "Editar sección" : "Nueva sección"}</DialogTitle>
-            <DialogDescription>
-              {editingSection ? "Modifica los detalles de la sección" : "Crea una nueva sección para organizar tus enlaces"}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="sectionTitle">Título de la sección</Label>
-              <Input
-                id="sectionTitle"
-                value={sectionTitle}
-                onChange={(e) => setSectionTitle(e.target.value)}
-                placeholder="Ej: Redes Sociales"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="sectionDescription">Descripción (opcional)</Label>
-              <Textarea
-                id="sectionDescription"
-                value={sectionDescription}
-                onChange={(e) => setSectionDescription(e.target.value)}
-                placeholder="Descripción breve de la sección"
-                rows={2}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="sectionType">Tipo de sección</Label>
-              <Select value={sectionType} onValueChange={(value: 'links' | 'carousel') => setSectionType(value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="links">Enlaces</SelectItem>
-                  <SelectItem value="carousel">Carrusel</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {sectionType === 'carousel' && (
-              <div className="space-y-2">
-                <Label htmlFor="sectionCarousel">Seleccionar Carrusel</Label>
-                <Select value={sectionCarouselId} onValueChange={setSectionCarouselId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un carrusel" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {carousels.length === 0 ? (
-                      <SelectItem value="" disabled>
-                        No hay carruseles disponibles
-                      </SelectItem>
-                    ) : (
-                      carousels.map((carousel) => (
-                        <SelectItem key={carousel.id} value={carousel.id}>
-                          {carousel.name}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <div className="flex items-center justify-between">
-              <Label htmlFor="sectionActive">Sección activa</Label>
-              <Switch id="sectionActive" checked={sectionActive} onCheckedChange={setSectionActive} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSectionDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSaveSection} disabled={!sectionTitle}>
-              {editingSection ? "Actualizar" : "Crear"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SectionDialog
+        open={sectionDialogOpen}
+        onOpenChange={setSectionDialogOpen}
+        editingSection={editingSection}
+        onSave={handleSaveSection}
+        sectionTitle={sectionTitle}
+        setSectionTitle={setSectionTitle}
+        sectionDescription={sectionDescription}
+        setSectionDescription={setSectionDescription}
+        sectionType={sectionType}
+        setSectionType={setSectionType}
+        sectionCarouselId={sectionCarouselId}
+        setSectionCarouselId={setSectionCarouselId}
+        sectionActive={sectionActive}
+        setSectionActive={setSectionActive}
+        carousels={carousels}
+      />
 
     </div>
   )

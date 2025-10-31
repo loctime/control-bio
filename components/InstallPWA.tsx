@@ -92,8 +92,8 @@ export function InstallPWA({ variant = "banner", className = "" }: InstallPWAPro
 
   // Banner por defecto
   return (
-    <Card className={`fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-80 z-50 shadow-2xl border-2 ${className}`}>
-      <CardContent className="p-3">
+    <Card className={`fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-80 z-50 shadow-2xl border-2 py-2 ${className}`}>
+      <CardContent className="p-2">
         <div className="flex items-center gap-2">
           <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-lg flex items-center justify-center">
             <Smartphone className="w-5 h-5 text-white" />
