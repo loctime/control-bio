@@ -250,6 +250,7 @@ ControlBio incluye integración completa con ControlFile para gestión de archiv
 ### Documentación Técnica
 - [Integración ControlFile](docs/CONTROLFILE_INTEGRATION.md) - Documentación completa
 - [Guía de Desarrollador](docs/DEVELOPER_GUIDE.md) - Para desarrolladores
+- [Componentes y Hooks](docs/COMPONENTS_AND_HOOKS.md) - Componentes reutilizables y hooks personalizados
 - [API Reference ControlFile](controlfile/API_REFERENCE.md) - Referencia de API
 
 ### Configuración Requerida

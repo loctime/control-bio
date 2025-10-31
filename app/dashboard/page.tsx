@@ -47,6 +47,9 @@ import { GalleryManager } from "@/components/dashboard/GalleryManager"
 import { LinkDialog } from "./components/LinkDialog"
 import { SectionDialog } from "./components/SectionDialog"
 import { DashboardHeader } from "./components/DashboardHeader"
+import { LinksTab } from "./components/LinksTab"
+import { ThemeTab } from "./components/ThemeTab"
+import { SecurityTab } from "./components/SecurityTab"
 import { 
   getControlBioFolder, 
   uploadFile, 
@@ -56,774 +59,63 @@ import {
 import { useDragAndDrop } from "@/hooks/useDragAndDrop"
 import { useLinks } from "@/hooks/useLinks"
 import { useSections } from "@/hooks/useSections"
+import { useDashboardData } from "@/hooks/useDashboardData"
+import { useProfile } from "@/hooks/useProfile"
+import { useTheme } from "@/hooks/useTheme"
 
 export default function DashboardPage() {
   const { user, loading: authLoading, signOut } = useAuth()
   const router = useRouter()
   const { toast } = useToast()
-  const [profile, setProfile] = useState<UserProfile | null>(null)
-  const [links, setLinks] = useState<Link[]>([])
-  const [sections, setSections] = useState<Section[]>([])
-  const [carousels, setCarousels] = useState<Carousel[]>([])
-  const [loading, setLoading] = useState(true)
-  const [editing, setEditing] = useState(false)
-  const [saving, setSaving] = useState(false)
   
-  // Individual field editing states
-  const [editingDisplayName, setEditingDisplayName] = useState(false)
-  const [editingUsername, setEditingUsername] = useState(false)
-  const [editingBio, setEditingBio] = useState(false)
+  // Load dashboard data
+  const { profile, links, sections, carousels, loading, setProfile, setLinks, setSections, setCarousels } = useDashboardData(user?.uid || "", user)
 
-  // Form state for profile
-  const [displayName, setDisplayName] = useState("")
-  const [username, setUsername] = useState("")
-  const [bio, setBio] = useState("")
-  const [avatarUrl, setAvatarUrl] = useState("")
-  const [bannerUrl, setBannerUrl] = useState("")
-
-  // Form state for theme
-  const [backgroundColor, setBackgroundColor] = useState("#ffffff")
-  const [textColor, setTextColor] = useState("#000000")
-  const [buttonColor, setButtonColor] = useState("#000000")
-  const [buttonTextColor, setButtonTextColor] = useState("#ffffff")
-
-  // Link dialog state
-  const [linkDialogOpen, setLinkDialogOpen] = useState(false)
-  const [editingLink, setEditingLink] = useState<Link | null>(null)
-  const [linkTitle, setLinkTitle] = useState("")
-  const [linkUrl, setLinkUrl] = useState("")
-  const [linkDescription, setLinkDescription] = useState("")
-  const [linkType, setLinkType] = useState<"external" | "internal">("external")
-  const [linkActive, setLinkActive] = useState(true)
-  const [linkSectionId, setLinkSectionId] = useState<string>("")
-
-  // Section dialog state
-  const [sectionDialogOpen, setSectionDialogOpen] = useState(false)
-  const [editingSection, setEditingSection] = useState<Section | null>(null)
-  const [sectionTitle, setSectionTitle] = useState("")
-  const [sectionDescription, setSectionDescription] = useState("")
-  const [sectionType, setSectionType] = useState<'links' | 'carousel'>('links')
-  const [sectionCarouselId, setSectionCarouselId] = useState<string>("")
-  const [sectionActive, setSectionActive] = useState(true)
-
-  // Avatar upload state
-  const [avatarFile, setAvatarFile] = useState<File | null>(null)
-  const [avatarPreview, setAvatarPreview] = useState<string>("")
-  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  // Profile management
+  const {
+    avatarFile, setAvatarFile, avatarPreview, setAvatarPreview, uploadingAvatar,
+    bannerFile, setBannerFile, bannerPreview, setBannerPreview, uploadingBanner,
+    editingDisplayName, setEditingDisplayName, editingUsername, setEditingUsername, editingBio, setEditingBio,
+    displayName, setDisplayName, username, setUsername, bio, setBio, avatarUrl, setAvatarUrl, bannerUrl, setBannerUrl,
+    saving: profileSaving, initializeForm, handleSaveField, handleCancelField, handleAvatarUpload, handleBannerUpload
+  } = useProfile()
   
-  // Banner upload state
-  const [bannerFile, setBannerFile] = useState<File | null>(null)
-  const [bannerPreview, setBannerPreview] = useState<string>("")
-  const [uploadingBanner, setUploadingBanner] = useState(false)
+  // Theme management
+  const {
+    backgroundColor, setBackgroundColor, textColor, setTextColor, buttonColor, setButtonColor, buttonTextColor, setButtonTextColor,
+    saving: themeSaving, initializeTheme, handleSaveTheme
+  } = useTheme()
   
-
+  // Links management  
+  const {
+    linkDialogOpen, setLinkDialogOpen, editingLink, linkTitle, setLinkTitle, linkUrl, setLinkUrl,
+    linkDescription, setLinkDescription, linkType, setLinkType, linkActive, setLinkActive, linkSectionId, setLinkSectionId,
+    openLinkDialog, handleSaveLink, handleDeleteLink, handleReorderLinks, handleMoveLinkToSection
+  } = useLinks()
+  
+  // Sections management
+  const {
+    sectionDialogOpen, setSectionDialogOpen, editingSection, sectionTitle, setSectionTitle, sectionDescription, setSectionDescription,
+    sectionType, setSectionType, sectionCarouselId, setSectionCarouselId, sectionActive, setSectionActive,
+    openSectionDialog, handleSaveSection, handleDeleteSection
+  } = useSections()
+  
   useEffect(() => {
     if (!authLoading && !user) {
       router.push("/")
     }
   }, [user, authLoading, router])
-
+  
   useEffect(() => {
-    const loadProfile = async () => {
-      if (!user) return
-
-      try {
-        console.log("Loading profile for user:", user.uid)
-        console.log("User auth token:", await user.getIdToken())
-        
-        const profileRef = doc(db, "apps/controlbio/users", user.uid)
-        const profileSnap = await getDoc(profileRef)
-
-        if (profileSnap.exists()) {
-          const data = profileSnap.data() as UserProfile
-          setProfile(data)
-          setDisplayName(data.displayName || "")
-          setUsername(data.username || "")
-          setBio(data.bio || "")
-          setAvatarUrl(data.avatarUrl || "")
-          setBannerUrl(data.bannerUrl || "")
-          
-          // Valores por defecto para el tema si no existe
-          const defaultTheme = {
-            backgroundColor: "#1f1f1f",
-            textColor: "#f5f5f5",
-            buttonColor: "#ff6b35",
-            buttonTextColor: "#1f1f1f",
-          }
-          
-          const theme = data.theme || defaultTheme
-          setBackgroundColor(theme.backgroundColor || defaultTheme.backgroundColor)
-          setTextColor(theme.textColor || defaultTheme.textColor)
-          setButtonColor(theme.buttonColor || defaultTheme.buttonColor)
-          setButtonTextColor(theme.buttonTextColor || defaultTheme.buttonTextColor)
-        } else {
-          // Create default profile
-          const username = user.email?.split("@")[0] || user.uid.slice(0, 8)
-          const defaultProfile: UserProfile = {
-            uid: user.uid,
-            username: username,
-            displayName: user.displayName || "Usuario",
-            email: user.email || "",
-            bio: "",
-            avatarUrl: user.photoURL || "",
-            theme: {
-              backgroundColor: "#0a0a0a",
-              textColor: "#ffffff",
-              buttonColor: "#ff6b35",
-              buttonTextColor: "#ffffff",
-            },
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }
-          
-          console.log("Creando perfil por defecto:", defaultProfile)
-          await setDoc(profileRef, defaultProfile)
-          setProfile(defaultProfile)
-          setDisplayName(defaultProfile.displayName)
-          setUsername(defaultProfile.username)
-          setBio(defaultProfile.bio)
-          setAvatarUrl(defaultProfile.avatarUrl)
-          setBannerUrl(defaultProfile.bannerUrl || "")
-          setBackgroundColor(defaultProfile.theme?.backgroundColor || "#0a0a0a")
-          setTextColor(defaultProfile.theme?.textColor || "#ffffff")
-          setButtonColor(defaultProfile.theme?.buttonColor || "#ff6b35")
-          setButtonTextColor(defaultProfile.theme?.buttonTextColor || "#ffffff")
-        }
-
-        // Load links
-        console.log("Loading links for user:", user.uid)
-        const linksQuery = query(collection(db, "apps/controlbio/links"), where("userId", "==", user.uid), orderBy("order", "asc"))
-        const linksSnap = await getDocs(linksQuery)
-        const linksData = linksSnap.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as Link)
-        setLinks(linksData)
-        console.log("Loaded links:", linksData)
-
-        // Load sections
-        console.log("Loading sections for user:", user.uid)
-        const sectionsQuery = query(collection(db, "apps/controlbio/sections"), where("userId", "==", user.uid), orderBy("order", "asc"))
-        const sectionsSnap = await getDocs(sectionsQuery)
-        const sectionsData = sectionsSnap.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as Section)
-        setSections(sectionsData)
-        console.log("Loaded sections:", sectionsData)
-
-        // Load carousels
-        console.log("Loading carousels for user:", user.uid)
-        const carouselsQuery = query(collection(db, "apps/controlbio/carousels"), where("userId", "==", user.uid), orderBy("order", "asc"))
-        const carouselsSnap = await getDocs(carouselsQuery)
-        const carouselsData = carouselsSnap.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as Carousel)
-        setCarousels(carouselsData)
-        console.log("Loaded carousels:", carouselsData)
-      } catch (error) {
-        console.error("Error loading profile:", error)
-        const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
-        const errorCode = error && typeof error === 'object' && 'code' in error ? error.code : 'unknown'
-        console.error("Error details:", {
-          code: errorCode,
-          message: errorMessage,
-          user: user?.uid,
-          authenticated: !!user
-        })
-        toast({
-          title: "Error",
-          description: `No se pudo cargar el perfil: ${errorMessage}`,
-          variant: "destructive",
-        })
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadProfile()
-  }, [user, toast])
-
-  // Función genérica para subir imágenes de perfil (avatar o banner)
-  const handleProfileImageUpload = async (file: File, type: 'avatar' | 'banner') => {
-    if (!user) return
-
-    const isLoading = type === 'avatar' ? setUploadingAvatar : setUploadingBanner
-    
-    isLoading(true)
-    try {
-      // 1. Obtener o crear la carpeta ControlBio en Firestore
-      const controlBioFolderId = await getControlBioFolder()
-      
-      // 2. Crear subcarpeta según el tipo de imagen
-      const folderName = type === 'avatar' ? 'Fotos de perfil' : 'Banners'
-      const imageFolderId = await ensureFolderExists(folderName, controlBioFolderId)
-      
-      // 3. Subir archivo a ControlFile usando la API
-      const fileId = await uploadFile(file, imageFolderId, (progress) => {
-        console.log(`Subiendo ${type}: ${progress}%`)
-      })
-      
-      // 4. Obtener URL presignada para vista previa
-      const token = await user.getIdToken()
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'https://controlfile.onrender.com'}/api/files/presign-get`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ fileId }),
-      })
-      
-      if (!response.ok) {
-        throw new Error('Error al obtener URL de vista previa')
-      }
-      
-      const { downloadUrl } = await response.json()
-      
-      // 5. Actualizar estado local con la URL presignada
-      if (type === 'avatar') {
-        setAvatarPreview(downloadUrl)
-        setAvatarUrl(downloadUrl)
-      } else {
-        setBannerPreview(downloadUrl)
-        setBannerUrl(downloadUrl)
-      }
-      
-      // 6. Guardar automáticamente en el perfil del usuario
-      if (profile) {
-        const updatedProfile: UserProfile = {
-          ...profile,
-          uid: user.uid,
-          ...(type === 'avatar' ? { avatarUrl: downloadUrl } : { bannerUrl: downloadUrl }),
-          updatedAt: new Date(),
-        }
-
-        const profileRef = doc(db, "apps/controlbio/users", user.uid)
-        await setDoc(profileRef, updatedProfile)
-        setProfile(updatedProfile)
-      }
-      
-      const typeLabel = type === 'avatar' ? 'Avatar' : 'Banner'
-      toast({
-        title: `${typeLabel} actualizado`,
-        description: "La imagen se ha guardado correctamente",
-      })
-    } catch (error: any) {
-      console.error(`Error uploading ${type}:`, error)
-      const typeLabel = type === 'avatar' ? 'Avatar' : 'Banner'
-      toast({
-        title: "Error",
-        description: `No se pudo subir el ${typeLabel.toLowerCase()} a ControlFile`,
-        variant: "destructive",
-      })
-    } finally {
-      isLoading(false)
-    }
-  }
-
-  const handleAvatarUpload = (file: File) => handleProfileImageUpload(file, 'avatar')
-  const handleBannerUpload = (file: File) => handleProfileImageUpload(file, 'banner')
-
-  const handleSaveField = async (field: string) => {
-    if (!user || !profile) return
-
-    setSaving(true)
-    try {
-      const updatedProfile: UserProfile = {
-        ...profile,
-        uid: user.uid,
-        displayName: field === 'displayName' ? displayName : profile.displayName,
-        username: field === 'username' ? username : profile.username,
-        bio: field === 'bio' ? bio : profile.bio,
-        avatarUrl: field === 'avatar' ? (avatarPreview || avatarUrl) : profile.avatarUrl,
-        bannerUrl: field === 'banner' ? (bannerPreview || bannerUrl) : (profile.bannerUrl || ""),
-        updatedAt: new Date(),
-      }
-
-      const profileRef = doc(db, "apps/controlbio/users", user.uid)
-      await setDoc(profileRef, updatedProfile)
-      setProfile(updatedProfile)
-      
-      // Reset editing states
-      setEditingDisplayName(false)
-      setEditingUsername(false)
-      setEditingBio(false)
-      setAvatarPreview("")
-      setAvatarFile(null)
-
-      toast({
-        title: "Campo actualizado",
-        description: "El cambio se ha guardado correctamente",
-      })
-    } catch (error) {
-      console.error("Error saving field:", error)
-      toast({
-        title: "Error",
-        description: "No se pudo guardar el cambio",
-        variant: "destructive",
-      })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleCancelField = (field: string) => {
     if (profile) {
-      if (field === 'displayName') {
-        setDisplayName(profile.displayName)
-        setEditingDisplayName(false)
-      } else if (field === 'username') {
-        setUsername(profile.username)
-        setEditingUsername(false)
-      } else if (field === 'bio') {
-        setBio(profile.bio)
-        setEditingBio(false)
-      } else         if (field === 'avatar') {
-          setAvatarUrl(profile.avatarUrl)
-          setAvatarPreview("")
-          setAvatarFile(null)
-        } else if (field === 'banner') {
-          setBannerUrl(profile.bannerUrl || "")
-          setBannerPreview("")
-          setBannerFile(null)
-        }
-    }
-  }
-
-  const handleSaveTheme = async () => {
-    if (!user || !profile) return
-
-    setSaving(true)
-    try {
-      const updatedProfile: UserProfile = {
-        ...profile,
-        theme: {
-          backgroundColor,
-          textColor,
-          buttonColor,
-          buttonTextColor,
-        },
-        updatedAt: new Date(),
+      initializeForm(profile)
+      if (profile.theme) {
+        initializeTheme(profile.theme)
       }
-
-      const profileRef = doc(db, "apps/controlbio/users", user.uid)
-      await setDoc(profileRef, updatedProfile)
-      setProfile(updatedProfile)
-
-      toast({
-        title: "Tema actualizado",
-        description: "Tu personalización se ha guardado correctamente",
-      })
-    } catch (error: any) {
-      console.error("Error saving theme:", error)
-      toast({
-        title: "Error",
-        description: "No se pudo guardar el tema",
-        variant: "destructive",
-      })
-    } finally {
-      setSaving(false)
     }
-  }
-
-
-  const openLinkDialog = (link?: Link) => {
-    if (link) {
-      setEditingLink(link)
-      setLinkTitle(link.title)
-      setLinkUrl(link.url)
-      setLinkDescription(link.description || "")
-      setLinkType(link.type)
-      setLinkActive(link.isActive)
-      setLinkSectionId(link.sectionId || "")
-    } else {
-      setEditingLink(null)
-      setLinkTitle("")
-      setLinkUrl("")
-      setLinkDescription("")
-      setLinkType("external")
-      setLinkActive(true)
-      setLinkSectionId("")
-    }
-    setLinkDialogOpen(true)
-  }
-
-  const openSectionDialog = (section?: Section) => {
-    if (section) {
-      setEditingSection(section)
-      setSectionTitle(section.title)
-      setSectionDescription(section.description || "")
-      setSectionType(section.type || 'links')
-      setSectionCarouselId(section.carouselId || "")
-      setSectionActive(section.isActive)
-    } else {
-      setEditingSection(null)
-      setSectionTitle("")
-      setSectionDescription("")
-      setSectionType('links')
-      setSectionCarouselId("")
-      setSectionActive(true)
-    }
-    setSectionDialogOpen(true)
-  }
-
-  const normalizeUrl = (url: string, type: "external" | "internal"): string => {
-    if (type === "internal") {
-      return url
-    }
-    
-    // Para enlaces externos, asegurar que tengan protocolo
-    if (!url.startsWith("http://") && !url.startsWith("https://")) {
-      return `https://${url}`
-    }
-    
-    return url
-  }
-
-  const handleSaveLink = async () => {
-    if (!user) {
-      console.error("No user authenticated")
-      toast({
-        title: "Error",
-        description: "No hay usuario autenticado",
-        variant: "destructive",
-      })
-      return
-    }
-
-    try {
-      console.log("Saving link for user:", user.uid)
-      console.log("User auth token:", await user.getIdToken())
-      
-      // Normalizar la URL antes de guardar
-      const normalizedUrl = normalizeUrl(linkUrl, linkType)
-      
-      if (editingLink) {
-        // Update existing link
-        const linkRef = doc(db, "apps/controlbio/links", editingLink.id)
-        await updateDoc(linkRef, {
-          title: linkTitle,
-          url: normalizedUrl,
-          description: linkDescription,
-          type: linkType,
-          isActive: linkActive,
-          sectionId: linkSectionId || undefined,
-          updatedAt: new Date(),
-        })
-
-        setLinks(
-          links.map((l) =>
-            l.id === editingLink.id
-              ? {
-                  ...l,
-                  title: linkTitle,
-                  url: normalizedUrl,
-                  description: linkDescription,
-                  type: linkType,
-                  isActive: linkActive,
-                  sectionId: linkSectionId || undefined,
-                  updatedAt: new Date().toISOString(),
-                }
-              : l,
-          ),
-        )
-
-        toast({
-          title: "Enlace actualizado",
-          description: "El enlace se ha actualizado correctamente",
-        })
-      } else {
-        // Create new link
-        const newLink = {
-          userId: user.uid,
-          title: linkTitle,
-          url: normalizedUrl,
-          description: linkDescription,
-          type: linkType,
-          isActive: linkActive,
-          sectionId: linkSectionId || undefined,
-          order: links.length,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
-
-        console.log("Creating new link:", newLink)
-        const docRef = await addDoc(collection(db, "apps/controlbio/links"), newLink)
-        setLinks([...links, { ...newLink, id: docRef.id } as Link])
-
-        toast({
-          title: "Enlace creado",
-          description: "El enlace se ha creado correctamente",
-        })
-      }
-
-      setLinkDialogOpen(false)
-    } catch (error) {
-      console.error("Error saving link:", error)
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
-      const errorCode = error && typeof error === 'object' && 'code' in error ? error.code : 'unknown'
-      console.error("Error details:", {
-        code: errorCode,
-        message: errorMessage,
-        user: user?.uid,
-        authenticated: !!user
-      })
-      toast({
-        title: "Error",
-        description: `No se pudo guardar el enlace: ${errorMessage}`,
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleDeleteLink = async (linkId: string) => {
-    try {
-      await deleteDoc(doc(db, "apps/controlbio/links", linkId))
-      setLinks(links.filter((l) => l.id !== linkId))
-
-      toast({
-        title: "Enlace eliminado",
-        description: "El enlace se ha eliminado correctamente",
-      })
-    } catch (error: any) {
-      console.error("Error deleting link:", error)
-      toast({
-        title: "Error",
-        description: "No se pudo eliminar el enlace",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleSaveSection = async () => {
-    if (!user) {
-      console.error("No user authenticated")
-      toast({
-        title: "Error",
-        description: "No hay usuario autenticado",
-        variant: "destructive",
-      })
-      return
-    }
-
-    try {
-      if (editingSection) {
-        // Update existing section
-        const sectionRef = doc(db, "apps/controlbio/sections", editingSection.id)
-        const updateData: any = {
-          title: sectionTitle,
-          description: sectionDescription,
-          isActive: sectionActive,
-          updatedAt: new Date(),
-        }
-
-        if (sectionType === 'carousel') {
-          updateData.type = 'carousel'
-          updateData.carouselId = sectionCarouselId || undefined
-        } else {
-          updateData.type = 'links'
-          updateData.carouselId = undefined
-        }
-
-        await updateDoc(sectionRef, updateData)
-
-        setSections(
-          sections.map((s) =>
-            s.id === editingSection.id
-              ? {
-                  ...s,
-                  title: sectionTitle,
-                  description: sectionDescription,
-                  type: sectionType,
-                  carouselId: sectionType === 'carousel' ? sectionCarouselId : undefined,
-                  isActive: sectionActive,
-                  updatedAt: new Date().toISOString(),
-                }
-              : s,
-          ),
-        )
-
-        toast({
-          title: "Sección actualizada",
-          description: "La sección se ha actualizado correctamente",
-        })
-      } else {
-        // Create new section
-        const newSection: any = {
-          userId: user.uid,
-          title: sectionTitle,
-          description: sectionDescription,
-          isActive: sectionActive,
-          order: sections.length,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
-
-        if (sectionType === 'carousel') {
-          newSection.type = 'carousel'
-          newSection.carouselId = sectionCarouselId || undefined
-        } else {
-          newSection.type = 'links'
-        }
-
-        console.log("Creating new section:", newSection)
-        const docRef = await addDoc(collection(db, "apps/controlbio/sections"), newSection)
-        setSections([...sections, { ...newSection, id: docRef.id } as Section])
-
-        toast({
-          title: "Sección creada",
-          description: "La sección se ha creado correctamente",
-        })
-      }
-
-      setSectionDialogOpen(false)
-    } catch (error) {
-      console.error("Error saving section:", error)
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
-      toast({
-        title: "Error",
-        description: `No se pudo guardar la sección: ${errorMessage}`,
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleDeleteSection = async (sectionId: string) => {
-    try {
-      // First, remove sectionId from all links in this section
-      const linksInSection = links.filter(link => link.sectionId === sectionId)
-      if (linksInSection.length > 0) {
-        const batch = writeBatch(db)
-        linksInSection.forEach(link => {
-          const linkRef = doc(db, "apps/controlbio/links", link.id)
-          batch.update(linkRef, { 
-            sectionId: undefined,
-            updatedAt: new Date()
-          })
-        })
-        await batch.commit()
-        
-        // Update local state
-        setLinks(links.map(link => 
-          link.sectionId === sectionId 
-            ? { ...link, sectionId: undefined, updatedAt: new Date().toISOString() }
-            : link
-        ))
-      }
-
-      // Then delete the section
-      await deleteDoc(doc(db, "apps/controlbio/sections", sectionId))
-      setSections(sections.filter((s) => s.id !== sectionId))
-
-      toast({
-        title: "Sección eliminada",
-        description: "La sección se ha eliminado correctamente",
-      })
-    } catch (error: any) {
-      console.error("Error deleting section:", error)
-      toast({
-        title: "Error",
-        description: "No se pudo eliminar la sección",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleReorderLinks = async (reorderedLinks: Link[]) => {
-    if (!user) return
-
-    try {
-      // Actualizar el estado local primero
-      setLinks(reorderedLinks)
-
-      // Actualizar el orden en la base de datos usando batch
-      const batch = writeBatch(db)
-      
-      reorderedLinks.forEach((link, index) => {
-        const linkRef = doc(db, "apps/controlbio/links", link.id)
-        batch.update(linkRef, { 
-          order: index,
-          updatedAt: new Date()
-        })
-      })
-
-      await batch.commit()
-
-      toast({
-        title: "Orden actualizado",
-        description: "Los enlaces se han reordenado correctamente",
-      })
-    } catch (error: any) {
-      console.error("Error reordering links:", error)
-      toast({
-        title: "Error",
-        description: "No se pudo actualizar el orden de los enlaces",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleMoveLinkToSection = async (linkId: string, sectionId: string | undefined) => {
-    if (!user) return
-
-    try {
-      console.log("Moving link:", linkId, "to section:", sectionId)
-      console.log("Available links:", links.map(l => ({ id: l.id, title: l.title })))
-      
-      // Obtener el enlace actual
-      const currentLink = links.find(link => link.id === linkId)
-      if (!currentLink) {
-        console.error("Link not found in state:", linkId)
-        console.error("Available link IDs:", links.map(l => l.id))
-        throw new Error(`Enlace no encontrado: ${linkId}`)
-      }
-
-      console.log("Found link:", currentLink.title)
-      console.log("Current link userId:", currentLink.userId)
-      console.log("Current user uid:", user.uid)
-      console.log("Will update sectionId to:", sectionId)
-
-      // Usar updateDoc para actualizar solo el campo necesario
-      const linkRef = doc(db, "apps/controlbio/links", linkId)
-      
-      const updateData: any = {
-        updatedAt: new Date()
-      }
-      
-      if (sectionId) {
-        // Si hay sección, asignarla
-        updateData.sectionId = sectionId
-      } else {
-        // Si no hay sección, eliminar el campo
-        updateData.sectionId = deleteField()
-      }
-      
-      console.log("Update data:", { ...updateData, sectionId: sectionId || "[DELETE]" })
-      await updateDoc(linkRef, updateData)
-
-      // Crear el enlace actualizado para el estado local
-      const updatedLink = {
-        ...currentLink,
-        sectionId: sectionId,
-        updatedAt: new Date().toISOString()
-      }
-
-      // Actualizar el estado local
-      setLinks(links.map(link => 
-        link.id === linkId 
-          ? updatedLink
-          : link
-      ))
-
-      const sectionName = sectionId ? sections.find(s => s.id === sectionId)?.title || 'sección' : 'sin sección'
-      toast({
-        title: "Enlace movido",
-        description: `El enlace se ha movido a ${sectionName}`,
-      })
-    } catch (error: any) {
-      console.error("Error moving link to section:", error)
-      toast({
-        title: "Error",
-        description: "No se pudo mover el enlace",
-        variant: "destructive",
-      })
-    }
-  }
-
-  // Configurar drag and drop
+  }, [profile])
+  
+  // Configurar drag and drop with wrapper
   const {
     dragState,
     handleDragStart,
@@ -831,7 +123,51 @@ export default function DashboardPage() {
     handleDragLeave,
     handleDrop,
     handleDragEnd,
-  } = useDragAndDrop(links, handleReorderLinks)
+  } = useDragAndDrop(links, (items) => handleReorderLinks(items, setLinks, user?.uid || ""))
+  
+  // Wrapper functions for hooks that need additional params
+  const handleSaveFieldWrapper = async (field: string) => {
+    if (!user || !profile) return
+    await handleSaveField(field, profile, setProfile, user.uid)
+  }
+  
+  const handleCancelFieldWrapper = (field: string) => {
+    handleCancelField(field, profile)
+  }
+  
+  const handleAvatarUploadWrapper = (file: File) => {
+    if (!user || !profile) return
+    handleAvatarUpload(file, profile, setProfile, user)
+  }
+  
+  const handleBannerUploadWrapper = (file: File) => {
+    if (!user || !profile) return
+    handleBannerUpload(file, profile, setProfile, user)
+  }
+  
+  const handleSaveThemeWrapper = async () => {
+    if (!user || !profile) return
+    await handleSaveTheme(profile, setProfile, user.uid)
+  }
+  
+  const handleSaveLinkWrapper = async () => {
+    if (!user) return
+    await handleSaveLink(links, setLinks, user.uid)
+  }
+  
+  const handleDeleteLinkWrapper = async (linkId: string) => {
+    await handleDeleteLink(linkId, links, setLinks)
+  }
+  
+  const handleSaveSectionWrapper = async () => {
+    if (!user) return
+    await handleSaveSection(sections, setSections, user.uid)
+  }
+  
+  const handleDeleteSectionWrapper = async (sectionId: string) => {
+    if (!user) return
+    await handleDeleteSection(sectionId, sections, setSections, links, setLinks, user.uid)
+  }
 
   const handleSignOut = async () => {
     await signOut()
@@ -846,6 +182,9 @@ export default function DashboardPage() {
       description: "La URL de tu perfil se ha copiado al portapapeles",
     })
   }
+  
+  // Determine which saving state to show
+  const saving = profileSaving || themeSaving
 
   if (authLoading || loading) {
     return (
@@ -914,7 +253,7 @@ export default function DashboardPage() {
                             const file = e.target.files?.[0]
                             if (file) {
                               setBannerFile(file)
-                              handleBannerUpload(file)
+                              handleBannerUploadWrapper(file)
                             }
                           }}
                           className="hidden"
@@ -939,7 +278,7 @@ export default function DashboardPage() {
                           if (url) {
                             setBannerUrl(url)
                             setBannerPreview(url)
-                            handleSaveField('banner')
+                            handleSaveFieldWrapper('banner')
                           }
                         }}
                         className="inline-flex items-center justify-center w-8 h-8 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors text-xs"
@@ -952,7 +291,7 @@ export default function DashboardPage() {
                         onClick={() => {
                           setBannerUrl("")
                           setBannerPreview("")
-                          handleSaveField('banner')
+                          handleSaveFieldWrapper('banner')
                         }}
                         className="inline-flex items-center justify-center w-8 h-8 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors text-xs"
                         title="Eliminar banner"
@@ -988,7 +327,7 @@ export default function DashboardPage() {
                               const file = e.target.files?.[0]
                               if (file) {
                                 setAvatarFile(file)
-                                handleAvatarUpload(file)
+                                handleAvatarUploadWrapper(file)
                               }
                             }}
                             className="hidden"
@@ -1014,7 +353,7 @@ export default function DashboardPage() {
                             if (url) {
                               setAvatarUrl(url)
                               setAvatarPreview(url)
-                              handleSaveField('avatar')
+                              handleSaveFieldWrapper('avatar')
                             }
                           }}
                           className="inline-flex items-center justify-center w-8 h-8 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors text-xs"
@@ -1041,14 +380,14 @@ export default function DashboardPage() {
                           />
                           <div className="flex justify-center gap-1">
                             <button
-                              onClick={() => handleSaveField('displayName')}
+                              onClick={() => handleSaveFieldWrapper('displayName')}
                               disabled={saving}
                               className="bg-green-500 text-white rounded px-2 py-1 text-xs hover:bg-green-600 transition-colors"
                             >
                               ✓
                             </button>
                             <button
-                              onClick={() => handleCancelField('displayName')}
+                              onClick={() => handleCancelFieldWrapper('displayName')}
                               disabled={saving}
                               className="bg-red-500 text-white rounded px-2 py-1 text-xs hover:bg-red-600 transition-colors"
                             >
@@ -1091,14 +430,14 @@ export default function DashboardPage() {
                           </div>
                           <div className="flex justify-center gap-1">
                             <button
-                              onClick={() => handleSaveField('username')}
+                              onClick={() => handleSaveFieldWrapper('username')}
                               disabled={saving}
                               className="bg-green-500 text-white rounded px-2 py-1 text-xs hover:bg-green-600 transition-colors"
                             >
                               ✓
                             </button>
                             <button
-                              onClick={() => handleCancelField('username')}
+                              onClick={() => handleCancelFieldWrapper('username')}
                               disabled={saving}
                               className="bg-red-500 text-white rounded px-2 py-1 text-xs hover:bg-red-600 transition-colors"
                             >
@@ -1137,14 +476,14 @@ export default function DashboardPage() {
                         />
                         <div className="flex justify-center gap-1">
                           <button
-                            onClick={() => handleSaveField('bio')}
+                            onClick={() => handleSaveFieldWrapper('bio')}
                             disabled={saving}
                             className="bg-green-500 text-white rounded px-2 py-1 text-xs hover:bg-green-600 transition-colors"
                           >
                             ✓
                           </button>
                           <button
-                            onClick={() => handleCancelField('bio')}
+                            onClick={() => handleCancelFieldWrapper('bio')}
                             disabled={saving}
                             className="bg-red-500 text-white rounded px-2 py-1 text-xs hover:bg-red-600 transition-colors"
                           >
@@ -1203,7 +542,7 @@ export default function DashboardPage() {
                               
                               console.log("Extracted linkId:", linkId)
                               if (linkId) {
-                                handleMoveLinkToSection(linkId, undefined)
+                                handleMoveLinkToSection(linkId, undefined, links, sections, setLinks)
                               }
                             }}
                           >
@@ -1262,7 +601,7 @@ export default function DashboardPage() {
                                         onClick={(e) => {
                                           e.preventDefault()
                                           e.stopPropagation()
-                                          handleDeleteLink(link.id)
+                                          handleDeleteLinkWrapper(link.id)
                                         }}
                                         className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
                                         title="Eliminar enlace"
@@ -1312,7 +651,7 @@ export default function DashboardPage() {
 
                                   console.log("Extracted linkId:", linkId)
                                   if (linkId) {
-                                    handleMoveLinkToSection(linkId, section.id)
+                                    handleMoveLinkToSection(linkId, section.id, links, sections, setLinks)
                                   }
                                 }}
                               >
@@ -1341,7 +680,7 @@ export default function DashboardPage() {
                                       onClick={(e) => {
                                         e.preventDefault()
                                         e.stopPropagation()
-                                        handleDeleteSection(section.id)
+                                        handleDeleteSectionWrapper(section.id)
                                       }}
                                       className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
                                       title="Eliminar sección"
@@ -1401,11 +740,11 @@ export default function DashboardPage() {
                                         
                                         {/* Botón de eliminar enlace */}
                                         <button
-                                          onClick={(e) => {
-                                            e.preventDefault()
-                                            e.stopPropagation()
-                                            handleDeleteLink(link.id)
-                                          }}
+                                            onClick={(e) => {
+                                              e.preventDefault()
+                                              e.stopPropagation()
+                                              handleDeleteLinkWrapper(link.id)
+                                            }}
                                           className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
                                           title="Eliminar enlace"
                                         >
@@ -1461,136 +800,20 @@ export default function DashboardPage() {
           </TabsContent>
 
           <TabsContent value="links" className="space-y-4 sm:space-y-6 mt-3 sm:mt-4">
-            <Card>
-              <CardHeader className="p-4 sm:p-6">
-                <div className="flex flex-col gap-3 sm:gap-0 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <CardTitle className="text-base sm:text-lg">Mis Enlaces</CardTitle>
-                    <CardDescription className="text-xs sm:text-sm">Gestiona los enlaces y secciones de tu perfil</CardDescription>
-                  </div>
-                  <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-                    <Button variant="outline" size="sm" className="text-xs sm:text-sm" onClick={() => openSectionDialog()}>
-                      <Plus className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
-                      <span className="hidden sm:inline">Agregar sección</span>
-                      <span className="sm:hidden">Sección</span>
-                    </Button>
-                    <Button size="sm" className="text-xs sm:text-sm" onClick={() => openLinkDialog()}>
-                      <Plus className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
-                      <span className="hidden sm:inline">Agregar enlace</span>
-                      <span className="sm:hidden">Enlace</span>
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {sections.length === 0 && links.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-muted-foreground mb-4">No tienes secciones ni enlaces todavía</p>
-                    <div className="flex gap-2 justify-center">
-                      <Button variant="outline" onClick={() => openSectionDialog()}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Crear sección
-                      </Button>
-                      <Button onClick={() => openLinkDialog()}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Crear enlace
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {/* Secciones */}
-                    {sections.length > 0 && (
-                      <div className="space-y-3">
-                        <h3 className="text-lg font-semibold">Secciones</h3>
-                        {sections.map((section) => (
-                          <div
-                            key={section.id}
-                            className="flex items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-all duration-200"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-medium">{section.title}</h4>
-                                {!section.isActive && <span className="text-xs bg-muted px-2 py-1 rounded">Inactiva</span>}
-                              </div>
-                              {section.description && (
-                                <p className="text-sm text-muted-foreground">{section.description}</p>
-                              )}
-                              <p className="text-xs text-muted-foreground">
-                                {links.filter(link => link.sectionId === section.id).length} enlaces
-                              </p>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button variant="ghost" size="sm" onClick={() => openSectionDialog(section)}>
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => handleDeleteSection(section.id)}>
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Enlaces */}
-                    {links.length > 0 && (
-                      <div className="space-y-3">
-                        <h3 className="text-lg font-semibold">Enlaces</h3>
-                        {links.map((link, index) => {
-                          const isDragging = dragState.draggedItem?.id === link.id
-                          const isDragOver = dragState.draggedOverItem?.id === link.id
-                          const section = sections.find(s => s.id === link.sectionId)
-                          
-                          return (
-                            <div
-                              key={link.id}
-                              draggable
-                              onDragStart={(e) => handleDragStart(e, link, index)}
-                              onDragOver={(e) => handleDragOver(e, link, index)}
-                              onDragLeave={handleDragLeave}
-                              onDrop={handleDrop}
-                              onDragEnd={handleDragEnd}
-                              className={`flex items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-all duration-200 cursor-move ${
-                                isDragging ? 'opacity-50 scale-95' : ''
-                              } ${
-                                isDragOver ? 'ring-2 ring-primary/50 ring-offset-2' : ''
-                              }`}
-                            >
-                              <GripVertical className="h-5 w-5 text-muted-foreground cursor-move" />
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <h3 className="font-medium truncate">{link.title}</h3>
-                                  {link.type === "external" && <ExternalLink className="h-4 w-4 text-muted-foreground" />}
-                                  {!link.isActive && <span className="text-xs bg-muted px-2 py-1 rounded">Inactivo</span>}
-                                  {section && (
-                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                      {section.title}
-                                    </span>
-                                  )}
-                                </div>
-                                {link.description && (
-                                  <p className="text-sm text-muted-foreground truncate">{link.description}</p>
-                                )}
-                                <p className="text-xs text-muted-foreground truncate">{link.url}</p>
-                              </div>
-                              <div className="flex gap-2">
-                                <Button variant="ghost" size="sm" onClick={() => openLinkDialog(link)}>
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={() => handleDeleteLink(link.id)}>
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <LinksTab
+              links={links}
+              sections={sections}
+              dragState={dragState}
+              handleDragStart={handleDragStart}
+              handleDragOver={handleDragOver}
+              handleDragLeave={handleDragLeave}
+              handleDrop={handleDrop}
+              handleDragEnd={handleDragEnd}
+              openLinkDialog={openLinkDialog}
+              openSectionDialog={openSectionDialog}
+              handleDeleteLinkWrapper={handleDeleteLinkWrapper}
+              handleDeleteSectionWrapper={handleDeleteSectionWrapper}
+            />
           </TabsContent>
 
           <TabsContent value="gallery" className="space-y-6 mt-0">
@@ -1612,144 +835,22 @@ export default function DashboardPage() {
           </TabsContent>
 
           <TabsContent value="theme" className="space-y-4 sm:space-y-6 mt-3 sm:mt-4">
-            <Card>
-              <CardHeader className="p-4 sm:p-6">
-                <CardTitle className="text-base sm:text-lg">Personalización</CardTitle>
-                <CardDescription className="text-xs sm:text-sm">Personaliza los colores de tu perfil</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="backgroundColor">Color de fondo</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="backgroundColor"
-                        type="color"
-                        value={backgroundColor}
-                        onChange={(e) => setBackgroundColor(e.target.value)}
-                        className="w-20 h-10"
-                      />
-                      <Input
-                        type="text"
-                        value={backgroundColor}
-                        onChange={(e) => setBackgroundColor(e.target.value)}
-                        placeholder="#ffffff"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="textColor">Color de texto</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="textColor"
-                        type="color"
-                        value={textColor}
-                        onChange={(e) => setTextColor(e.target.value)}
-                        className="w-20 h-10"
-                      />
-                      <Input
-                        type="text"
-                        value={textColor}
-                        onChange={(e) => setTextColor(e.target.value)}
-                        placeholder="#000000"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="buttonColor">Color de botones</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="buttonColor"
-                        type="color"
-                        value={buttonColor}
-                        onChange={(e) => setButtonColor(e.target.value)}
-                        className="w-20 h-10"
-                      />
-                      <Input
-                        type="text"
-                        value={buttonColor}
-                        onChange={(e) => setButtonColor(e.target.value)}
-                        placeholder="#000000"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="buttonTextColor">Color de texto de botones</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="buttonTextColor"
-                        type="color"
-                        value={buttonTextColor}
-                        onChange={(e) => setButtonTextColor(e.target.value)}
-                        className="w-20 h-10"
-                      />
-                      <Input
-                        type="text"
-                        value={buttonTextColor}
-                        onChange={(e) => setButtonTextColor(e.target.value)}
-                        placeholder="#ffffff"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border border-border rounded-lg p-6" style={{ backgroundColor }}>
-                  <div className="text-center space-y-4">
-                    <h3 className="text-xl font-bold" style={{ color: textColor }}>
-                      Vista previa
-                    </h3>
-                    <p style={{ color: textColor }}>Así se verá tu perfil</p>
-                    <button
-                      className="px-6 py-3 rounded-lg font-medium transition-opacity hover:opacity-90"
-                      style={{ backgroundColor: buttonColor, color: buttonTextColor }}
-                    >
-                      Botón de ejemplo
-                    </button>
-                  </div>
-                </div>
-
-                <Button onClick={handleSaveTheme} disabled={saving}>
-                  {saving ? "Guardando..." : "Guardar tema"}
-                </Button>
-              </CardContent>
-            </Card>
+            <ThemeTab
+              backgroundColor={backgroundColor}
+              setBackgroundColor={setBackgroundColor}
+              textColor={textColor}
+              setTextColor={setTextColor}
+              buttonColor={buttonColor}
+              setButtonColor={setButtonColor}
+              buttonTextColor={buttonTextColor}
+              setButtonTextColor={setButtonTextColor}
+              saving={saving}
+              onSave={handleSaveThemeWrapper}
+            />
           </TabsContent>
 
           <TabsContent value="security" className="space-y-6 mt-0">
-            <Card>
-              <CardHeader>
-                <CardTitle>Seguridad</CardTitle>
-                <CardDescription>Información de tu cuenta</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Proveedor de autenticación</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Google
-                    </p>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label>Email de la cuenta</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {user.email}
-                    </p>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label>Seguridad de la cuenta</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Tu cuenta está protegida con autenticación de Google. Para cambiar tu contraseña, 
-                      hazlo desde tu cuenta de Google.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <SecurityTab userEmail={user.email || ""} />
           </TabsContent>
         </Tabs>
       </main>
@@ -1758,7 +859,7 @@ export default function DashboardPage() {
         open={linkDialogOpen}
         onOpenChange={setLinkDialogOpen}
         editingLink={editingLink}
-        onSave={handleSaveLink}
+        onSave={handleSaveLinkWrapper}
         linkTitle={linkTitle}
         setLinkTitle={setLinkTitle}
         linkUrl={linkUrl}
@@ -1778,7 +879,7 @@ export default function DashboardPage() {
         open={sectionDialogOpen}
         onOpenChange={setSectionDialogOpen}
         editingSection={editingSection}
-        onSave={handleSaveSection}
+        onSave={handleSaveSectionWrapper}
         sectionTitle={sectionTitle}
         setSectionTitle={setSectionTitle}
         sectionDescription={sectionDescription}
