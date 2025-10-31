@@ -767,23 +767,27 @@ export default function DashboardPage() {
       }
 
       console.log("Found link:", currentLink.title)
+      console.log("Current link userId:", currentLink.userId)
+      console.log("Current user uid:", user.uid)
+      console.log("Will update sectionId to:", sectionId)
 
       // Usar updateDoc para actualizar solo el campo necesario
       const linkRef = doc(db, "apps/controlbio/links", linkId)
       
+      const updateData: any = {
+        updatedAt: new Date()
+      }
+      
       if (sectionId) {
         // Si hay sección, asignarla
-        await updateDoc(linkRef, {
-          sectionId: sectionId,
-          updatedAt: new Date().toISOString()
-        })
+        updateData.sectionId = sectionId
       } else {
         // Si no hay sección, eliminar el campo
-        await updateDoc(linkRef, {
-          sectionId: deleteField(),
-          updatedAt: new Date().toISOString()
-        })
+        updateData.sectionId = deleteField()
       }
+      
+      console.log("Update data:", { ...updateData, sectionId: sectionId || "[DELETE]" })
+      await updateDoc(linkRef, updateData)
 
       // Crear el enlace actualizado para el estado local
       const updatedLink = {
