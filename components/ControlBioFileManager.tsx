@@ -67,8 +67,13 @@ export function ControlBioFileManager() {
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-    } catch (error) {
-      toast.error('Error al subir archivo');
+    } catch (error: any) {
+      console.error('Error en handleUpload:', error);
+      const errorMessage = error?.message || 'Error desconocido al subir archivo';
+      toast.error(`Error: ${errorMessage}`, {
+        description: 'El servicio de almacenamiento puede estar temporalmente no disponible. Intenta más tarde.',
+        duration: 6000
+      });
     }
   };
 

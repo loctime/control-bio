@@ -183,13 +183,34 @@ function uploadThroughProxy(
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve();
       } else {
-        reject(new Error(`Error HTTP ${xhr.status}`));
+        let errorMessage = `Error HTTP ${xhr.status}`;
+        try {
+          const responseText = xhr.responseText;
+          if (responseText) {
+            const errorData = JSON.parse(responseText);
+            errorMessage = errorData.error || errorData.message || errorMessage;
+          }
+        } catch (e) {
+          // Si no se puede parsear, usar el texto plano
+          if (xhr.responseText) {
+            errorMessage = `${errorMessage}: ${xhr.responseText}`;
+          }
+        }
+        console.error('❌ Error en proxy-upload:', errorMessage);
+        reject(new Error(errorMessage));
       }
     });
     
     xhr.addEventListener('error', () => {
-      reject(new Error('Error de red al subir archivo'));
+      reject(new Error('Error de red al subir archivo. Verifica tu conexión a internet.'));
     });
+    
+    xhr.addEventListener('timeout', () => {
+      reject(new Error('Tiempo de espera agotado al subir archivo. El servidor puede estar sobrecargado.'));
+    });
+    
+    // Establecer timeout de 5 minutos para archivos grandes
+    xhr.timeout = 5 * 60 * 1000;
     
     xhr.open('POST', `${BACKEND_URL}/api/uploads/proxy-upload`);
     xhr.setRequestHeader('Authorization', `Bearer ${token}`);
