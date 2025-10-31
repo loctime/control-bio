@@ -240,6 +240,196 @@ import { SecurityTab } from "@/app/dashboard/components/SecurityTab"
 
 ---
 
+### 7. ProfilePreview
+
+Componente para mostrar una vista previa editable del perfil del usuario. Incluye banner, avatar, nombre, biografía y enlaces organizados por secciones con drag & drop.
+
+**Ubicación:** `app/dashboard/components/ProfilePreview.tsx`
+
+**Props:**
+```typescript
+interface ProfilePreviewProps {
+  profile: UserProfile | null
+  // Avatar
+  avatarPreview: string | null
+  uploadingAvatar: boolean
+  editingDisplayName: boolean
+  editingBio: boolean
+  displayName: string
+  bio: string
+  // Banner
+  bannerPreview: string | null
+  uploadingBanner: boolean
+  // Links & Sections
+  links: Link[]
+  sections: Section[]
+  dragState: {
+    draggedItem: { id: string } | null
+    draggedOverItem: { id: string } | null
+  }
+  // Setters
+  setDisplayName: (value: string) => void
+  setBio: (value: string) => void
+  setLinks: React.Dispatch<React.SetStateAction<Link[]>>
+  // Handlers
+  handleDragStart: (e: React.DragEvent, link: Link, index: number) => void
+  handleDragOver: (e: React.DragEvent, link: Link, index: number) => void
+  handleDragLeave: (e: React.DragEvent) => void
+  handleDrop: (e: React.DragEvent) => void
+  handleDragEnd: (e: React.DragEvent) => void
+  handleMoveLinkToSection: (linkId: string, sectionId: string | undefined, links: Link[], sections: Section[], setLinks: React.Dispatch<React.SetStateAction<Link[]>>) => Promise<void>
+  handleSaveField: (field: string) => Promise<void>
+  handleCancelField: (field: string) => void
+  setEditingDisplayName: (value: boolean) => void
+  setEditingBio: (value: boolean) => void
+  handleAvatarUpload: (file: File) => void
+  handleBannerUpload: (file: File) => void
+  handleDeleteLink: (linkId: string) => void
+  handleDeleteSection: (sectionId: string) => void
+  openLinkDialog: () => void
+  openSectionDialog: () => void
+  saving: boolean
+}
+```
+
+**Características:**
+- ✅ Vista previa en tiempo real del perfil
+- ✅ Edición inline de banner, avatar, nombre y biografía
+- ✅ Responsive mobile-first design
+- ✅ Integración con drag & drop para reordenar enlaces
+- ✅ Gestión de enlaces por secciones
+- ✅ Botones de acción con estados visuales
+
+**Uso:**
+```typescript
+import { ProfilePreview } from "@/app/dashboard/components/ProfilePreview"
+import { useProfile } from "@/hooks/useProfile"
+import { useDragAndDrop } from "@/hooks/useDragAndDrop"
+
+const {
+  avatarPreview,
+  uploadingAvatar,
+  bannerPreview,
+  uploadingBanner,
+  editingDisplayName,
+  editingBio,
+  displayName,
+  bio,
+  setDisplayName,
+  setBio,
+  setEditingDisplayName,
+  setEditingBio,
+  handleSaveField,
+  handleCancelField,
+  handleAvatarUpload,
+  handleBannerUpload,
+} = useProfile()
+
+const { dragState, handleDragStart, handleDragOver, handleDragLeave, handleDrop, handleDragEnd } = useDragAndDrop(links, handleReorderLinks)
+
+<ProfilePreview
+  profile={profile}
+  avatarPreview={avatarPreview}
+  uploadingAvatar={uploadingAvatar}
+  editingDisplayName={editingDisplayName}
+  editingBio={editingBio}
+  displayName={displayName}
+  bio={bio}
+  bannerPreview={bannerPreview}
+  uploadingBanner={uploadingBanner}
+  links={links}
+  sections={sections}
+  dragState={dragState}
+  setDisplayName={setDisplayName}
+  setBio={setBio}
+  setLinks={setLinks}
+  handleDragStart={handleDragStart}
+  handleDragOver={handleDragOver}
+  handleDragLeave={handleDragLeave}
+  handleDrop={handleDrop}
+  handleDragEnd={handleDragEnd}
+  handleMoveLinkToSection={handleMoveLinkToSectionWrapper}
+  handleSaveField={handleSaveFieldWrapper}
+  handleCancelField={handleCancelFieldWrapper}
+  setEditingDisplayName={setEditingDisplayName}
+  setEditingBio={setEditingBio}
+  handleAvatarUpload={handleAvatarUploadWrapper}
+  handleBannerUpload={handleBannerUploadWrapper}
+  handleDeleteLink={handleDeleteLinkWrapper}
+  handleDeleteSection={handleDeleteSectionWrapper}
+  openLinkDialog={openLinkDialog}
+  openSectionDialog={openSectionDialog}
+  saving={saving}
+/>
+```
+
+---
+
+### 8. ProfilePreviewLinks
+
+Componente para mostrar y gestionar enlaces dentro de la vista previa del perfil. Soporta drag & drop entre secciones y gestión de enlaces sin sección.
+
+**Ubicación:** `app/dashboard/components/ProfilePreviewLinks.tsx`
+
+**Props:**
+```typescript
+interface ProfilePreviewLinksProps {
+  links: Link[]
+  sections: Section[]
+  profile: UserProfile | null
+  dragState: {
+    draggedItem: { id: string } | null
+    draggedOverItem: { id: string } | null
+  }
+  handleDragStart: (e: React.DragEvent, link: Link, index: number) => void
+  handleDragOver: (e: React.DragEvent, link: Link, index: number) => void
+  handleDragLeave: (e: React.DragEvent) => void
+  handleDrop: (e: React.DragEvent) => void
+  handleDragEnd: (e: React.DragEvent) => void
+  handleMoveLinkToSection: (linkId: string, sectionId: string | undefined, links: Link[], sections: Section[], setLinks: React.Dispatch<React.SetStateAction<Link[]>>) => Promise<void>
+  handleDeleteLink: (linkId: string) => void
+  handleDeleteSection: (sectionId: string) => void
+  openLinkDialog: () => void
+  openSectionDialog: () => void
+  setLinks: React.Dispatch<React.SetStateAction<Link[]>>
+}
+```
+
+**Características:**
+- ✅ Drag & drop entre secciones
+- ✅ Área de drop para enlaces sin sección
+- ✅ Visualización organizada por secciones
+- ✅ Botones de acción para agregar enlaces y secciones
+- ✅ Responsive mobile-first
+- ✅ Indicadores visuales durante drag & drop
+
+**Uso:**
+```typescript
+import { ProfilePreviewLinks } from "@/app/dashboard/components/ProfilePreviewLinks"
+
+<ProfilePreviewLinks
+  links={links}
+  sections={sections}
+  profile={profile}
+  dragState={dragState}
+  handleDragStart={handleDragStart}
+  handleDragOver={handleDragOver}
+  handleDragLeave={handleDragLeave}
+  handleDrop={handleDrop}
+  handleDragEnd={handleDragEnd}
+  handleMoveLinkToSection={handleMoveLinkToSectionWrapper}
+  handleDeleteLink={handleDeleteLinkWrapper}
+  handleDeleteSection={handleDeleteSectionWrapper}
+  openLinkDialog={openLinkDialog}
+  openSectionDialog={openSectionDialog}
+  setLinks={setLinks}
+/>
+```
+
+**Nota:** Este componente se usa internamente por `ProfilePreview`. Generalmente no necesitas importarlo directamente a menos que quieras usarlo de forma independiente.
+
+---
+
 ## 🪝 Custom Hooks
 
 Hooks personalizados en `hooks/`:
@@ -669,6 +859,7 @@ import { DashboardHeader } from "@/app/dashboard/components/DashboardHeader"
 import { LinksTab } from "@/app/dashboard/components/LinksTab"
 import { ThemeTab } from "@/app/dashboard/components/ThemeTab"
 import { SecurityTab } from "@/app/dashboard/components/SecurityTab"
+import { ProfilePreview } from "@/app/dashboard/components/ProfilePreview"
 import { LinkDialog } from "@/app/dashboard/components/LinkDialog"
 import { SectionDialog } from "@/app/dashboard/components/SectionDialog"
 import { useToast } from "@/hooks/use-toast"
@@ -717,6 +908,50 @@ export default function DashboardPage() {
       <DashboardHeader profile={profile} onSignOut={handleSignOut} />
       
       <Tabs>
+        <TabsContent value="profile">
+          <Card>
+            <CardHeader>
+              <CardTitle>Mi Perfil</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ProfilePreview
+                profile={profile}
+                avatarPreview={profileHook.avatarPreview}
+                uploadingAvatar={profileHook.uploadingAvatar}
+                editingDisplayName={profileHook.editingDisplayName}
+                editingBio={profileHook.editingBio}
+                displayName={profileHook.displayName}
+                bio={profileHook.bio}
+                bannerPreview={profileHook.bannerPreview}
+                uploadingBanner={profileHook.uploadingBanner}
+                links={links}
+                sections={sections}
+                dragState={dragState}
+                setDisplayName={profileHook.setDisplayName}
+                setBio={profileHook.setBio}
+                setLinks={setLinks}
+                handleDragStart={handleDragStart}
+                handleDragOver={handleDragOver}
+                handleDragLeave={handleDragLeave}
+                handleDrop={handleDrop}
+                handleDragEnd={handleDragEnd}
+                handleMoveLinkToSection={handleMoveLinkToSectionWrapper}
+                handleSaveField={handleSaveFieldWrapper}
+                handleCancelField={handleCancelFieldWrapper}
+                setEditingDisplayName={profileHook.setEditingDisplayName}
+                setEditingBio={profileHook.setEditingBio}
+                handleAvatarUpload={handleAvatarUploadWrapper}
+                handleBannerUpload={handleBannerUploadWrapper}
+                handleDeleteLink={handleDeleteLinkWrapper}
+                handleDeleteSection={handleDeleteSectionWrapper}
+                openLinkDialog={linksHook.openLinkDialog}
+                openSectionDialog={sectionsHook.openSectionDialog}
+                saving={false}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
         <TabsContent value="links">
           <LinksTab
             links={links}
