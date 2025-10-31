@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { collection, addDoc, updateDoc, deleteDoc, doc, writeBatch } from "firebase/firestore"
+import { collection, addDoc, updateDoc, deleteDoc, doc, writeBatch, deleteField } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { useToast } from "@/hooks/use-toast"
 import type { Link } from "@/types"
@@ -207,6 +207,61 @@ export function useLinks() {
     }
   }
 
+  const handleMoveLinkToSection = async (
+    linkId: string,
+    sectionId: string | undefined,
+    links: Link[],
+    sections: any[],
+    setLinks: React.Dispatch<React.SetStateAction<Link[]>>
+  ) => {
+    try {
+      const currentLink = links.find(link => link.id === linkId)
+      if (!currentLink) {
+        console.error("Link not found in state:", linkId)
+        throw new Error(`Enlace no encontrado: ${linkId}`)
+      }
+
+      const linkRef = doc(db, "apps/controlbio/links", linkId)
+      
+      const updateData: any = {
+        updatedAt: new Date()
+      }
+      
+      if (sectionId) {
+        updateData.sectionId = sectionId
+      } else {
+        updateData.sectionId = deleteField()
+      }
+      
+      await updateDoc(linkRef, updateData)
+
+      const updatedLink = {
+        ...currentLink,
+        sectionId: sectionId,
+        updatedAt: new Date().toISOString()
+      }
+
+      setLinks(links.map(link => 
+        link.id === linkId 
+          ? updatedLink
+          : link
+      ))
+
+      const sectionName = sectionId ? sections.find(s => s.id === sectionId)?.title || 'sección' : 'sin sección'
+      toast({
+        title: "Enlace movido",
+        description: `El enlace se ha movido a ${sectionName}`,
+      })
+    } catch (error: any) {
+      console.error("Error moving link to section:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo mover el enlace",
+        variant: "destructive",
+      })
+    }
+  }
+
   return {
     // State
     linkDialogOpen,
@@ -230,6 +285,7 @@ export function useLinks() {
     handleSaveLink,
     handleDeleteLink,
     handleReorderLinks,
+    handleMoveLinkToSection,
   }
 }
 

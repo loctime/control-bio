@@ -18,10 +18,14 @@ interface UseDashboardDataReturn {
   sections: Section[]
   carousels: Carousel[]
   loading: boolean
+  setProfile: React.Dispatch<React.SetStateAction<UserProfile | null>>
+  setLinks: React.Dispatch<React.SetStateAction<Link[]>>
+  setSections: React.Dispatch<React.SetStateAction<Section[]>>
+  setCarousels: React.Dispatch<React.SetStateAction<Carousel[]>>
   refetch: () => Promise<void>
 }
 
-export function useDashboardData(userId: string): UseDashboardDataReturn {
+export function useDashboardData(userId: string, authUser?: any): UseDashboardDataReturn {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [links, setLinks] = useState<Link[]>([])
   const [sections, setSections] = useState<Section[]>([])
@@ -42,13 +46,14 @@ export function useDashboardData(userId: string): UseDashboardDataReturn {
         setProfile(data)
       } else {
         // Create default profile
+        const username = authUser?.email?.split("@")[0] || `user${userId.slice(0, 8)}`
         const defaultProfile: UserProfile = {
           uid: userId,
-          username: `user${userId.slice(0, 8)}`,
-          displayName: "Usuario",
-          email: "",
+          username: username,
+          displayName: authUser?.displayName || "Usuario",
+          email: authUser?.email || "",
           bio: "",
-          avatarUrl: "",
+          avatarUrl: authUser?.photoURL || "",
           theme: {
             backgroundColor: "#0a0a0a",
             textColor: "#ffffff",
@@ -117,6 +122,10 @@ export function useDashboardData(userId: string): UseDashboardDataReturn {
     sections,
     carousels,
     loading,
+    setProfile,
+    setLinks,
+    setSections,
+    setCarousels,
     refetch: loadData,
   }
 }
