@@ -4,7 +4,8 @@ import React from 'react'
 import { useState, useRef, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { GripVertical, X, RotateCcw } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { GripVertical, X, RotateCcw, Eye } from 'lucide-react'
 import type { GalleryLayoutItem } from '@/types'
 
 interface ResizableImageCardProps {
@@ -36,6 +37,7 @@ export function ResizableImageCard({
   const [isResizing, setIsResizing] = useState(false)
   const [resizeHandle, setResizeHandle] = useState<ResizeHandle | null>(null)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [showPreview, setShowPreview] = useState(false)
   const [resizeStart, setResizeStart] = useState({ 
     x: 0, 
     y: 0, 
@@ -200,99 +202,145 @@ export function ResizableImageCard({
   }
 
   return (
-    <Card
-      ref={cardRef}
-      className={`absolute transition-all duration-200 ${
-        isSelected ? 'ring-2 ring-primary ring-offset-2' : ''
-      } ${isDragging || isResizing ? 'opacity-80' : ''}`}
-      style={style}
-      onMouseDown={handleMouseDown}
-    >
-      <CardContent className="p-0 h-full relative group">
-        {/* Imagen */}
-        <div className="w-full h-full overflow-hidden rounded-lg">
-          {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt={imageName}
-              className="w-full h-full object-cover"
-              style={{
-                borderRadius: item.effects?.borderRadius ? `${item.effects.borderRadius}px` : undefined,
-                boxShadow: item.effects?.shadow ? '0 4px 12px rgba(0,0,0,0.15)' : undefined,
-              }}
-            />
-          ) : (
-            <div className="w-full h-full bg-muted flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-8 h-8 bg-gray-300 rounded mb-2 mx-auto" />
-                <p className="text-xs text-muted-foreground">{imageName}</p>
+    <>
+      <Card
+        ref={cardRef}
+        className={`absolute transition-all duration-200 ${
+          isSelected ? 'ring-2 ring-primary ring-offset-2' : ''
+        } ${isDragging || isResizing ? 'opacity-80' : ''}`}
+        style={style}
+        onMouseDown={handleMouseDown}
+      >
+        <CardContent className="p-0 h-full relative group">
+          {/* Imagen */}
+          <div className="w-full h-full overflow-hidden rounded-lg">
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt={imageName}
+                className="w-full h-full object-cover"
+                style={{
+                  borderRadius: item.effects?.borderRadius ? `${item.effects.borderRadius}px` : undefined,
+                  boxShadow: item.effects?.shadow ? '0 4px 12px rgba(0,0,0,0.15)' : undefined,
+                }}
+              />
+            ) : (
+              <div className="w-full h-full bg-muted flex items-center justify-center">
+                <div className="text-center">
+                  <div className="w-8 h-8 bg-gray-300 rounded mb-2 mx-auto" />
+                  <p className="text-xs text-muted-foreground">{imageName}</p>
+                </div>
               </div>
+            )}
+          </div>
+
+          {/* Overlay de controles */}
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200">
+            {/* Handle de arrastre */}
+            <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <GripVertical className="h-4 w-4 text-white drop-shadow-lg" />
             </div>
-          )}
-        </div>
 
-        {/* Overlay de controles */}
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200">
-          {/* Handle de arrastre */}
-          <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <GripVertical className="h-4 w-4 text-white drop-shadow-lg" />
+            {/* Botones de acción */}
+            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+              {imageUrl && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-6 w-6 p-0"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowPreview(true)
+                  }}
+                  title="Ver imagen"
+                >
+                  <Eye className="h-3 w-3" />
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="secondary"
+                className="h-6 w-6 p-0"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  resetRotation()
+                }}
+                title="Resetear rotación"
+              >
+                <RotateCcw className="h-3 w-3" />
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-6 w-6 p-0"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onRemove()
+                }}
+                title="Eliminar del layout"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+
+            {/* Handles de redimensionamiento */}
+            {isSelected && (
+              <>
+                {/* Esquina superior izquierda */}
+                <div
+                  className="absolute -top-1 -left-1 w-3 h-3 bg-primary rounded-full cursor-nw-resize opacity-0 group-hover:opacity-100"
+                  onMouseDown={(e) => handleResizeMouseDown(e, 'nw')}
+                />
+                {/* Esquina superior derecha */}
+                <div
+                  className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full cursor-ne-resize opacity-0 group-hover:opacity-100"
+                  onMouseDown={(e) => handleResizeMouseDown(e, 'ne')}
+                />
+                {/* Esquina inferior izquierda */}
+                <div
+                  className="absolute -bottom-1 -left-1 w-3 h-3 bg-primary rounded-full cursor-sw-resize opacity-0 group-hover:opacity-100"
+                  onMouseDown={(e) => handleResizeMouseDown(e, 'sw')}
+                />
+                {/* Esquina inferior derecha */}
+                <div
+                  className="absolute -bottom-1 -right-1 w-3 h-3 bg-primary rounded-full cursor-se-resize opacity-0 group-hover:opacity-100"
+                  onMouseDown={(e) => handleResizeMouseDown(e, 'se')}
+                />
+              </>
+            )}
           </div>
-
-          {/* Botones de acción */}
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-            <Button
-              size="sm"
-              variant="secondary"
-              className="h-6 w-6 p-0"
-              onClick={(e) => {
-                e.stopPropagation()
-                resetRotation()
-              }}
-              title="Resetear rotación"
-            >
-              <RotateCcw className="h-3 w-3" />
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              className="h-6 w-6 p-0"
-              onClick={(e) => {
-                e.stopPropagation()
-                onRemove()
-              }}
-              title="Eliminar del layout"
-            >
-              <X className="h-3 w-3" />
-            </Button>
+        </CardContent>
+      </Card>
+      
+      {/* Modal para ver imagen ampliada */}
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0">
+          <DialogHeader className="p-4 pb-0">
+            <DialogTitle className="flex items-center justify-between">
+              <span className="truncate">{imageName}</span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowPreview(false)}
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-4">
+            {imageUrl && (
+              <div className="flex justify-center">
+                <img
+                  src={imageUrl}
+                  alt={imageName}
+                  className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                />
+              </div>
+            )}
           </div>
-
-          {/* Handles de redimensionamiento */}
-          {isSelected && (
-            <>
-              {/* Esquina superior izquierda */}
-              <div
-                className="absolute -top-1 -left-1 w-3 h-3 bg-primary rounded-full cursor-nw-resize opacity-0 group-hover:opacity-100"
-                onMouseDown={(e) => handleResizeMouseDown(e, 'nw')}
-              />
-              {/* Esquina superior derecha */}
-              <div
-                className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full cursor-ne-resize opacity-0 group-hover:opacity-100"
-                onMouseDown={(e) => handleResizeMouseDown(e, 'ne')}
-              />
-              {/* Esquina inferior izquierda */}
-              <div
-                className="absolute -bottom-1 -left-1 w-3 h-3 bg-primary rounded-full cursor-sw-resize opacity-0 group-hover:opacity-100"
-                onMouseDown={(e) => handleResizeMouseDown(e, 'sw')}
-              />
-              {/* Esquina inferior derecha */}
-              <div
-                className="absolute -bottom-1 -right-1 w-3 h-3 bg-primary rounded-full cursor-se-resize opacity-0 group-hover:opacity-100"
-                onMouseDown={(e) => handleResizeMouseDown(e, 'se')}
-              />
-            </>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

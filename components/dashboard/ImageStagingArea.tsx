@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ImageIcon, Video, FileImage, LayoutGrid, Shuffle } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ImageIcon, Video, FileImage, LayoutGrid, Shuffle, Eye, X } from 'lucide-react'
 import type { GalleryLayoutItem } from '@/types'
 
 interface GalleryFile {
@@ -31,6 +32,7 @@ export function ImageStagingArea({
   onUploadMore
 }: ImageStagingAreaProps) {
   const [draggedFile, setDraggedFile] = useState<string | null>(null)
+  const [selectedImage, setSelectedImage] = useState<GalleryFile | null>(null)
 
   // Filtrar archivos que no están en el layout
   const availableFiles = files.filter(file => 
@@ -80,27 +82,29 @@ export function ImageStagingArea({
 
   return (
     <Card className="h-64">
-      <CardContent className="p-4 h-full flex flex-col">
-        <div className="flex items-center justify-between mb-4 flex-shrink-0">
+      <CardContent className="px-2 pt-0 pb-2 h-full flex flex-col">
+        <div className="flex items-center justify-between mb-2 flex-shrink-0">
           <div>
-            <h3 className="font-semibold">Imágenes disponibles</h3>
-            <p className="text-sm text-muted-foreground">
+            <h3 className="font-semibold text-sm">Imágenes disponibles</h3>
+            <p className="text-xs text-muted-foreground">
               {availableFiles.length} imágenes sin posicionar
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
             <Button
               size="sm"
               variant="outline"
+              className="h-7 text-xs px-2"
               onClick={handleAutoLayout}
               disabled={availableFiles.filter(f => f.mime?.startsWith('image/')).length === 0}
             >
-              <Shuffle className="h-4 w-4 mr-2" />
+              <Shuffle className="h-3 w-3 mr-1" />
               Auto Layout
             </Button>
             <Button
               size="sm"
               variant="outline"
+              className="h-7 text-xs px-2"
               onClick={onUploadMore}
             >
               Subir más
@@ -108,8 +112,8 @@ export function ImageStagingArea({
           </div>
         </div>
 
-        <div className="h-48 flex-1 min-h-0 overflow-x-auto overflow-y-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
-          <div className="flex gap-2 pb-2 px-1 inline-flex">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+          <div className="grid grid-cols-6 gap-1.5 pr-1">
             {availableFiles.map((file) => {
               const isImage = file.mime?.startsWith('image/')
               const isDragging = draggedFile === file.id
@@ -123,16 +127,8 @@ export function ImageStagingArea({
                   draggable={isImage}
                   onDragStart={() => handleDragStart(file.id)}
                   onDragEnd={handleDragEnd}
-                  onClick={() => isImage && onAddToLayout(file.id)}
-                  style={{ 
-                    width: '120px', 
-                    minWidth: '120px', 
-                    maxWidth: '120px',
-                    flexShrink: 0,
-                    flexGrow: 0
-                  }}
                 >
-                  <CardContent className="p-2">
+                  <CardContent className="p-1">
                     <div className="aspect-square relative bg-muted rounded overflow-hidden group w-full">
                       {file.url ? (
                         isImage ? (
@@ -161,13 +157,36 @@ export function ImageStagingArea({
                         </div>
                       )}
 
-                      {/* Overlay para imágenes */}
+                      {/* Overlay con botones de acción */}
                       {isImage && (
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200 flex items-center justify-center">
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div className="w-8 h-8 bg-white/90 rounded-full flex items-center justify-center">
-                              <LayoutGrid className="h-4 w-4 text-gray-700" />
-                            </div>
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-200 flex items-center justify-center gap-2">
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                            {file.url && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="h-6 w-6 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setSelectedImage(file)
+                                }}
+                                title="Ver imagen"
+                              >
+                                <Eye className="h-3 w-3" />
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="h-6 w-6 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onAddToLayout(file.id)
+                              }}
+                              title="Agregar al layout"
+                            >
+                              <LayoutGrid className="h-3 w-3" />
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -180,7 +199,7 @@ export function ImageStagingArea({
                       )}
                     </div>
                     
-                    <p className="text-xs text-center mt-1 truncate" title={file.name}>
+                    <p className="text-[10px] text-center mt-0.5 truncate leading-tight" title={file.name}>
                       {file.name}
                     </p>
                   </CardContent>
@@ -189,6 +208,36 @@ export function ImageStagingArea({
             })}
           </div>
         </div>
+
+        {/* Modal para ver imagen ampliada */}
+        <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
+          <DialogContent className="max-w-4xl max-h-[90vh] p-0">
+            <DialogHeader className="p-4 pb-0">
+              <DialogTitle className="flex items-center justify-between">
+                <span className="truncate">{selectedImage?.name}</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSelectedImage(null)}
+                  className="h-8 w-8 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </DialogTitle>
+            </DialogHeader>
+            <div className="p-4">
+              {selectedImage?.url && (
+                <div className="flex justify-center">
+                  <img
+                    src={selectedImage.url}
+                    alt={selectedImage.name}
+                    className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                  />
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   )
