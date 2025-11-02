@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -56,10 +57,18 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
   const [saving, setSaving] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const canvasRef = useRef<HTMLDivElement>(null)
+  const hasLoadedRef = useRef<string | null>(null)
   const { toast } = useToast()
 
-  // Cargar layout y archivos
+  // Cargar layout y archivos (solo una vez por userId)
   useEffect(() => {
+    // Evitar carga doble en modo desarrollo (React 18+ StrictMode)
+    if (hasLoadedRef.current === userId) {
+      console.log('⏭️ Datos ya cargados para este usuario, omitiendo recarga')
+      return
+    }
+    
+    hasLoadedRef.current = userId
     loadData()
   }, [userId])
 

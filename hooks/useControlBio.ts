@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   getControlBioFolder, 
   uploadFile, 
@@ -22,51 +23,51 @@ export interface ControlBioFile {
   type: 'file' | 'folder';
 }
 
+// Función para inicializar la carpeta ControlBio
+const initializeControlBioFolder = async (): Promise<string> => {
+  const id = await getControlBioFolder();
+  return id;
+};
+
 export function useControlBio() {
-  const [folderId, setFolderId] = useState<string | null>(null);
-  const [files, setFiles] = useState<ControlBioFile[]>([]);
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  // Inicializar carpeta ControlBio
+  // Query para obtener el folderId de ControlBio
+  const { data: folderId } = useQuery({
+    queryKey: ['controlBioFolder'],
+    queryFn: initializeControlBioFolder,
+    staleTime: Infinity, // Nunca expira porque es una carpeta raíz fija
+  });
+
+  // Query para cargar archivos
+  const { 
+    data: files = [], 
+    isLoading: loading,
+    error: filesError 
+  } = useQuery({
+    queryKey: ['controlBioFiles', folderId],
+    queryFn: () => listFiles(folderId!),
+    enabled: !!folderId,
+    staleTime: 30 * 1000, // 30 segundos
+  });
+
+  // Manejar errores
   useEffect(() => {
-    initializeFolder();
-  }, []);
-
-  const initializeFolder = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const id = await getControlBioFolder();
-      setFolderId(id);
-      await loadFiles(id);
-    } catch (error) {
-      console.error('Error inicializando carpeta ControlBio:', error);
-      setError(error instanceof Error ? error.message : 'Error desconocido');
-    } finally {
-      setLoading(false);
+    if (filesError) {
+      setError(filesError instanceof Error ? filesError.message : 'Error cargando archivos');
     }
-  };
+  }, [filesError]);
 
-  const loadFiles = async (parentId?: string) => {
-    try {
-      setError(null);
-      const items = await listFiles(parentId || folderId);
-      setFiles(items || []);
-    } catch (error) {
-      console.error('Error cargando archivos:', error);
-      setError(error instanceof Error ? error.message : 'Error cargando archivos');
-    }
-  };
+  // Mutación para subir archivos
+  const uploadMutation = useMutation({
+    mutationFn: async ({ file, subfolder }: { file: File; subfolder?: string }) => {
+      if (!folderId) {
+        throw new Error('Carpeta ControlBio no inicializada');
+      }
 
-  const handleUpload = async (file: File, subfolder?: string) => {
-    if (!folderId) {
-      throw new Error('Carpeta ControlBio no inicializada');
-    }
-
-    try {
       setUploading(true);
       setUploadProgress(0);
       setError(null);
@@ -78,19 +79,59 @@ export function useControlBio() {
         targetFolderId = await ensureFolderExists(subfolder, folderId);
       }
       
-      const fileId = await uploadFile(file, targetFolderId, setUploadProgress);
-      
-      // Recargar lista de archivos
-      await loadFiles();
-      
+      return await uploadFile(file, targetFolderId, setUploadProgress);
+    },
+    onSuccess: () => {
+      // Invalidar y recargar lista de archivos
+      queryClient.invalidateQueries({ queryKey: ['controlBioFiles', folderId] });
+    },
+    onError: (error) => {
+      console.error('Error subiendo archivo:', error);
+      setError(error instanceof Error ? error.message : 'Error subiendo archivo');
+    },
+    onSettled: () => {
+      setUploading(false);
+      setUploadProgress(0);
+    },
+  });
+
+  // Mutación para eliminar archivos
+  const deleteMutation = useMutation({
+    mutationFn: deleteFile,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['controlBioFiles', folderId] });
+    },
+    onError: (error) => {
+      console.error('Error eliminando archivo:', error);
+      setError(error instanceof Error ? error.message : 'Error eliminando archivo');
+    },
+  });
+
+  // Mutación para crear carpetas
+  const createFolderMutation = useMutation({
+    mutationFn: async ({ folderName, parentId }: { folderName: string; parentId?: string }) => {
+      const targetParentId = parentId || folderId;
+      if (!targetParentId) {
+        throw new Error('No hay carpeta padre especificada');
+      }
+      return await createSubFolder(folderName, targetParentId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['controlBioFiles', folderId] });
+    },
+    onError: (error) => {
+      console.error('Error creando carpeta:', error);
+      setError(error instanceof Error ? error.message : 'Error creando carpeta');
+    },
+  });
+
+  const handleUpload = async (file: File, subfolder?: string) => {
+    try {
+      const fileId = await uploadMutation.mutateAsync({ file, subfolder });
       return fileId;
     } catch (error) {
       console.error('Error subiendo archivo:', error);
-      setError(error instanceof Error ? error.message : 'Error subiendo archivo');
       throw error;
-    } finally {
-      setUploading(false);
-      setUploadProgress(0);
     }
   };
 
@@ -124,30 +165,19 @@ export function useControlBio() {
 
   const handleDelete = async (fileId: string) => {
     try {
-      setError(null);
-      await deleteFile(fileId);
-      await loadFiles();
+      await deleteMutation.mutateAsync(fileId);
     } catch (error) {
       console.error('Error eliminando archivo:', error);
-      setError(error instanceof Error ? error.message : 'Error eliminando archivo');
       throw error;
     }
   };
 
   const createFolder = async (folderName: string, parentId?: string) => {
     try {
-      setError(null);
-      const targetParentId = parentId || folderId;
-      if (!targetParentId) {
-        throw new Error('No hay carpeta padre especificada');
-      }
-      
-      const newFolderId = await createSubFolder(folderName, targetParentId);
-      await loadFiles();
+      const newFolderId = await createFolderMutation.mutateAsync({ folderName, parentId });
       return newFolderId;
     } catch (error) {
       console.error('Error creando carpeta:', error);
-      setError(error instanceof Error ? error.message : 'Error creando carpeta');
       throw error;
     }
   };
@@ -172,9 +202,13 @@ export function useControlBio() {
     return '📄';
   };
 
+  const refreshFiles = () => {
+    queryClient.invalidateQueries({ queryKey: ['controlBioFiles', folderId] });
+  };
+
   return {
     // Estado
-    folderId,
+    folderId: folderId ?? null,
     files,
     loading,
     uploading,
@@ -187,7 +221,7 @@ export function useControlBio() {
     shareFile: handleShare,
     deleteFile: handleDelete,
     createFolder,
-    refreshFiles: () => loadFiles(),
+    refreshFiles,
     
     // Utilidades
     formatFileSize,

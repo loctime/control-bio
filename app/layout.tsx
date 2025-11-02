@@ -6,6 +6,7 @@ import "./globals.css"
 import { AuthProvider } from "@/lib/auth-context"
 import { Toaster } from "@/components/ui/toaster"
 import { InstallPWABanner } from "@/components/InstallPWA"
+import { QueryProvider } from "@/components/query-provider"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -45,10 +46,12 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body className={`font-sans antialiased`}>
-        <AuthProvider>
-          {children}
-          <Toaster />
-        </AuthProvider>
+        <QueryProvider>
+          <AuthProvider>
+            {children}
+            <Toaster />
+          </AuthProvider>
+        </QueryProvider>
         <InstallPWABanner />
         <Analytics />
       </body>
