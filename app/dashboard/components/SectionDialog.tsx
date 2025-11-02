@@ -116,7 +116,10 @@ export function SectionDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={onSave} disabled={!sectionTitle}>
+          <Button 
+            onClick={onSave} 
+            disabled={!sectionTitle || (sectionType === 'carousel' && !sectionCarouselId)}
+          >
             {editingSection ? "Actualizar" : "Crear"}
           </Button>
         </DialogFooter>

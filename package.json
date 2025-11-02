@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "next build",
+    "build:rules": "node firestore-rules/build.js",
     "dev": "next dev --port 3001",
     "dev:clean": "taskkill /F /IM node.exe 2>nul & timeout /t 2 /nobreak >nul & next dev --port 3001",
     "lint": "eslint .",

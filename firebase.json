@@ -1,0 +1,9 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}
+// ⚠️ NOTA: Este archivo está configurado solo para testing local.
+// NO ejecutar 'firebase deploy --only firestore:rules' desde este repositorio.
+// CONTROLFILE es el repositorio maestro que despliega todas las reglas al Firestore compartido.
+

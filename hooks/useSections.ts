@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { collection, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore"
+import { collection, addDoc, updateDoc, deleteDoc, doc, deleteField } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { useToast } from "@/hooks/use-toast"
 import type { Section } from "@/types"
@@ -57,17 +57,36 @@ export function useSections() {
       return
     }
 
+    // Validar que si el tipo es 'carousel', haya un carouselId seleccionado
+    if (sectionType === 'carousel' && !sectionCarouselId) {
+      toast({
+        title: "Error",
+        description: "Debes seleccionar un carrusel para este tipo de sección",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       if (editingSection) {
         const sectionRef = doc(db, "apps/controlbio/sections", editingSection.id)
-        await updateDoc(sectionRef, {
+        const updateData: any = {
           title: sectionTitle,
           description: sectionDescription,
           type: sectionType,
-          carouselId: sectionType === 'carousel' ? sectionCarouselId : undefined,
           isActive: sectionActive,
           updatedAt: new Date(),
-        })
+        }
+
+        // Solo incluir carouselId si el tipo es 'carousel' y hay un ID válido
+        if (sectionType === 'carousel' && sectionCarouselId) {
+          updateData.carouselId = sectionCarouselId
+        } else if (editingSection.carouselId) {
+          // Si la sección tenía carouselId y ahora no lo tiene, eliminarlo
+          updateData.carouselId = deleteField()
+        }
+
+        await updateDoc(sectionRef, updateData)
 
         setSections(
           sections.map((s) =>
@@ -77,7 +96,7 @@ export function useSections() {
                   title: sectionTitle,
                   description: sectionDescription,
                   type: sectionType,
-                  carouselId: sectionType === 'carousel' ? sectionCarouselId : undefined,
+                  carouselId: sectionType === 'carousel' && sectionCarouselId ? sectionCarouselId : undefined,
                   isActive: sectionActive,
                   updatedAt: new Date().toISOString(),
                 }
@@ -90,16 +109,20 @@ export function useSections() {
           description: "La sección se ha actualizado correctamente",
         })
       } else {
-        const newSection = {
+        const newSection: any = {
           userId: userId,
           title: sectionTitle,
           description: sectionDescription,
           type: sectionType,
-          carouselId: sectionType === 'carousel' ? sectionCarouselId : undefined,
           isActive: sectionActive,
           order: sections.length,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
+        }
+
+        // Solo incluir carouselId si el tipo es 'carousel' y hay un ID válido
+        if (sectionType === 'carousel' && sectionCarouselId) {
+          newSection.carouselId = sectionCarouselId
         }
 
         const docRef = await addDoc(collection(db, "apps/controlbio/sections"), newSection)

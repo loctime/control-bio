@@ -2,7 +2,10 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{db}/documents {
-    /* ========= HELPERS BASE ========= */
+
+    /* ========= BASE ========= */
+    
+    // ========= HELPERS BASE =========
     function isAuth() { return request.auth != null; }
     function uid() { return request.auth.uid; }
     
@@ -78,27 +81,35 @@ service cloud.firestore {
       return resource.data[flagField] == true;
     }
     
-    /* ========= CONTROLBIO (link-in-bio) ========= */
+    
+
+    /* ========= CONTROLBIO ========= */
+    
+    // ========= CONTROLBIO (link-in-bio) =========
+    
     match /apps/controlbio/users/{userId} {
       allow read: if true;
+    
       allow create: if isAuth()
         && userId == uid()
         && request.resource.data.uid == uid()
         && request.resource.data.email == request.auth.token.email
         && strBetween("username", 3, 20)
         && strBetween("displayName", 1, 50);
+    
       allow update: if isAuth()
         && userId == uid()
         && unchanged("uid")
         && unchanged("email")
         && strBetween("username", 3, 20)
         && strBetween("displayName", 1, 50);
+    
       allow delete: if isAuth() && userId == uid();
     }
     
     match /apps/controlbio/links/{linkId} {
       allow read: if publicRead("isActive") || (isAuth() && resource.data.userId == uid());
-      
+    
       allow create: if ownerIs("userId")
         && strBetween("title", 1, 100)
         && nonEmptyString("url")
@@ -107,13 +118,11 @@ service cloud.firestore {
         && isStringOrNull("sectionId")
         && isTs("createdAt")
         && isTs("updatedAt");
-      
-      // Actualización: Permite actualizaciones parciales, especialmente para sectionId
-      // Los campos pueden estar presentes o no (actualización parcial)
+    
+      // Actualización: Permite actualizaciones parciales
       allow update: if isAuth()
         && resource.data.userId == uid()
         && (!("userId" in request.resource.data) || request.resource.data.userId == resource.data.userId)
-        // Validar campos solo si están presentes en la actualización
         && (!("title" in request.resource.data) || (request.resource.data.title is string && request.resource.data.title.size() >= 1 && request.resource.data.title.size() <= 100))
         && (!("url" in request.resource.data) || (request.resource.data.url is string && request.resource.data.url.size() >= 1))
         && (!("order" in request.resource.data) || (request.resource.data.order is number && (request.resource.data.order % 1) == 0))
@@ -121,20 +130,20 @@ service cloud.firestore {
         && (!("sectionId" in request.resource.data) || request.resource.data.sectionId is string || request.resource.data.sectionId == null)
         && (!("createdAt" in request.resource.data) || request.resource.data.createdAt == resource.data.createdAt)
         && (!("updatedAt" in request.resource.data) || request.resource.data.updatedAt is timestamp);
-      
+    
       allow delete: if ownerIs("userId");
     }
     
     match /apps/controlbio/sections/{sectionId} {
       allow read: if publicRead("isActive") || (isAuth() && resource.data.userId == uid());
-      
+    
       allow create: if ownerIs("userId")
         && strBetween("title", 1, 50)
         && isInt("order")
         && isBool("isActive")
         && isTs("createdAt")
         && isTs("updatedAt");
-      
+    
       allow update: if ownerIs("userId")
         && unchanged("userId")
         && strBetween("title", 1, 50)
@@ -142,13 +151,13 @@ service cloud.firestore {
         && isBool("isActive")
         && unchanged("createdAt")
         && isTs("updatedAt");
-      
+    
       allow delete: if ownerIs("userId");
     }
     
     match /apps/controlbio/carousels/{carouselId} {
       allow read: if publicRead("isPublic") || (isAuth() && resource.data.userId == uid());
-      
+    
       allow create: if ownerIs("userId")
         && strBetween("name", 1, 100)
         && request.resource.data.type in ['horizontal','grid','masonry','card']
@@ -158,7 +167,7 @@ service cloud.firestore {
         && isBool("isPublic")
         && isTs("createdAt")
         && isTs("updatedAt");
-      
+    
       allow update: if ownerIs("userId")
         && unchanged("userId")
         && strBetween("name", 1, 100)
@@ -169,14 +178,14 @@ service cloud.firestore {
         && isBool("isPublic")
         && unchanged("createdAt")
         && isTs("updatedAt");
-      
+    
       allow delete: if ownerIs("userId");
     }
     
     // Galerías de controlbio
     match /apps/controlbio/galleries/{galleryId} {
       allow read: if publicRead("isActive") || (isAuth() && resource.data.userId == uid());
-      
+    
       allow create: if ownerIs("userId")
         && strBetween("name", 1, 100)
         && request.resource.data.layout in ['grid','masonry','carousel']
@@ -185,7 +194,7 @@ service cloud.firestore {
         && isBool("isActive")
         && isTs("createdAt")
         && isTs("updatedAt");
-      
+    
       allow update: if ownerIs("userId")
         && unchanged("userId")
         && strBetween("name", 1, 100)
@@ -195,228 +204,34 @@ service cloud.firestore {
         && isBool("isActive")
         && unchanged("createdAt")
         && isTs("updatedAt");
-      
+    
       allow delete: if ownerIs("userId");
     }
     
-    /* ========= CONTROL-STORE (NUEVO - CON CATEGORÍAS) ========= */
-    // Helper para obtener ownerId de una tienda
-    function storeOwnerId(storeId) {
-      return get(/databases/$(db)/documents/apps/control-store/stores/$(storeId)).data.ownerId;
+    // Layouts de galería de controlbio
+    match /apps/controlbio/galleryLayouts/{layoutId} {
+      allow read: if publicRead("isPublic") || (isAuth() && resource.data.userId == uid());
+    
+      allow create: if ownerIs("userId")
+        && request.resource.data.userId == uid()
+        && request.resource.data.items is list
+        && request.resource.data.settings is map
+        && isBool("isPublic");
+    
+      allow update: if isAuth()
+        && resource.data.userId == uid()
+        && (!("userId" in request.resource.data) || request.resource.data.userId == resource.data.userId)
+        && (!("items" in request.resource.data) || request.resource.data.items is list)
+        && (!("settings" in request.resource.data) || request.resource.data.settings is map)
+        && (!("isPublic" in request.resource.data) || request.resource.data.isPublic is bool);
+    
+      allow delete: if isAuth() && resource.data.userId == uid();
     }
     
-    // Usuario de control-store
-    match /apps/control-store/users/{userId} {
-      // Crear documento - cualquier usuario autenticado puede crear su propio documento
-      allow create: if isAuth() 
-        && userId == uid()
-        && request.resource.data.email != null
-        && request.resource.data.displayName != null;
-      
-      // Leer - el propio usuario o admins
-      allow read: if isAuth() && (userId == uid() || isControlStoreAdmin());
-      
-      // Actualizar - solo el propio usuario
-      allow update: if isAuth() && userId == uid();
-      
-      // Eliminar - solo el propio usuario
-      allow delete: if isAuth() && userId == uid();
-    }
     
-    // Tiendas
-    match /apps/control-store/stores/{storeId} {
-      // Lectura pública para ver catálogos
-      allow read: if true;
-      
-      // Crear tienda - verificar que el ownerId sea el usuario actual
-      allow create: if isAuth() 
-        && request.resource.data.ownerId == uid()
-        && request.resource.data.ownerEmail != null
-        && request.resource.data.slug != null
-        && request.resource.data.name != null;
-      
-      // Actualizar tienda - solo el owner O admin/maxdev
-      // También permitir actualización durante transferencia (cambio de dueño)
-      allow update: if isAuth() && (
-        (resource.data.ownerId == uid() && request.resource.data.ownerId == resource.data.ownerId) ||
-        (isControlStoreAdmin() || isControlStoreMaxDev()) ||
-        // Permitir cambio de dueño durante transferencia
-        (request.resource.data.ownerId == uid() && request.resource.data.ownerEmail != null)
-      );
-      
-      // Eliminar tienda - solo el owner O admin/maxdev
-      allow delete: if isAuth() && (
-        resource.data.ownerId == uid() ||
-        (isControlStoreAdmin() || isControlStoreMaxDev())
-      );
-      
-      // Productos de cada tienda
-      match /products/{productId} {
-        // Lectura pública
-        allow read: if true;
-        
-        // Crear producto - solo el owner de la tienda
-        allow create: if isAuth() && storeOwnerId(storeId) == uid();
-        
-        // Actualizar/eliminar - solo el owner de la tienda
-        allow update, delete: if isAuth() && storeOwnerId(storeId) == uid();
-      }
-      
-      // Categorías de cada tienda
-      match /categories/{categoryId} {
-        // Lectura pública
-        allow read: if true;
-        
-        // Crear categoría - solo el owner de la tienda
-        allow create: if isAuth() && storeOwnerId(storeId) == uid();
-        
-        // Actualizar/eliminar - solo el owner de la tienda
-        allow update, delete: if isAuth() && storeOwnerId(storeId) == uid();
-      }
-    }
-    
-    // Invitaciones
-    match /apps/control-store/invitations/{invitationId} {
-      // Lectura pública para validar tokens
-      allow read: if true;
-      
-      // Crear invitación - usuarios autenticados
-      allow create: if isAuth();
-      
-      // Actualizar invitación - para marcar como usada
-      allow update: if isAuth() && !resource.data.used;
-      
-      // Eliminar - desde backend
-      allow delete: if false;
-    }
-    
-    // Transferencias de tiendas
-    match /apps/control-store/transfers/{transferId} {
-      // Lectura pública para validar tokens
-      allow read: if true;
-      
-      // Crear transferencia - solo admins/maxdev de control-store
-      allow create: if isAuth() && (isControlStoreAdmin() || isControlStoreMaxDev());
-      
-      // Actualizar transferencia - cualquier usuario autenticado puede marcar como usada cuando acepta
-      // Solo se permite marcar como usada si no estaba usada previamente
-      allow update: if isAuth() && !resource.data.used;
-      
-      // Eliminar - solo admins/maxdev de control-store
-      allow delete: if isAuth() && (isControlStoreAdmin() || isControlStoreMaxDev());
-    }
-    
-    /* ========= CONTROLD (remitos) ========= */
-    match /apps/controld {
-      match /users/{userId} {
-        allow read: if isAuth();
-        allow create, update: if isAuth();
-        allow delete: if isAdmin();
-      }
-      match /branches/{branchId} {
-        allow read: if isAuth();
-        allow create, update, delete: if isAdmin();
-      }
-      match /products/{productId} {
-        allow read: if isAuth();
-        allow create: if isAdmin() || isFactory();
-        allow update, delete: if isAdmin();
-      }
-      match /orders/{orderId} {
-        allow read, create, update: if isAuth();
-        allow delete: if isAdmin();
-      }
-      match /deliveryNotes/{noteId} {
-        allow read, create, update: if isAuth();
-        allow delete: if isAdmin();
-      }
-      match /templates/{templateId} {
-        allow read, create, update, delete: if isAuth();
-      }
-      match /remit-metadata/{metadataId} {
-        allow read, create, update: if isAuth();
-        allow delete: if isAdmin();
-      }
-      match /replacementQueues/{queueId} {
-        allow read, create, update: if isAuth();
-        allow delete: if isAdmin();
-      }
-    }
-    
-    /* ========= CONTROLGASTOS ========= */
-    match /apps/controlgastos/users/{userId}/{collection=**}/{docId} {
-      allow read, write: if isAuth() && userId == uid();
-    }
-    
-    match /apps/controlgastos/categories/{categoryId} {
-      allow read, write: if isAuth();
-    }
-    
-    match /expenses/{id} {
-      allow create: if isAuth() && request.resource.data.userId == uid();
-      allow read, update, delete: if isAuth() && resource.data.userId == uid();
-    }
-    
-    match /payments/{id} {
-      allow create: if isAuth() && request.resource.data.userId == uid();
-      allow read, update, delete: if isAuth() && resource.data.userId == uid();
-    }
-    
-    match /invoices/{id} {
-      allow create: if isAuth() && request.resource.data.userId == uid();
-      allow read, update, delete: if isAuth() && resource.data.userId == uid();
-    }
-    
-    /* ========= CONTROLFILE ========= */
-    // Archivos
-    match /files/{fileId} {
-      allow create: if isAuth() && request.resource.data.userId == uid();
-      allow read, update, delete: if isAuth() && resource.data.userId == uid();
-    }
-    
-    // Carpetas
-    match /folders/{folderId} {
-      allow create: if isAuth() && request.resource.data.userId == uid();
-      allow read, update, delete: if isAuth() && resource.data.userId == uid();
-    }
-    
-    // Sesiones de upload
-    match /uploadSessions/{sessionId} {
-      allow create: if isAuth() && request.resource.data.uid == uid();
-      allow read, update, delete: if isAuth() && resource.data.uid == uid();
-    }
-    
-    // Compartir archivos
-    match /shares/{shareId} {
-      allow create: if isAuth() && request.resource.data.userId == uid();
-      allow read: if resource.data.isPublic == true || (isAuth() && resource.data.userId == uid());
-      allow update, delete: if isAuth() && resource.data.userId == uid();
-    }
-    
-    // Papelera
-    match /trash/{trashId} {
-      allow create: if isAuth() && request.resource.data.userId == uid();
-      allow read, update, delete: if isAuth() && resource.data.userId == uid();
-    }
-    
-    // Usuarios
-    match /users/{userId} {
-      allow create: if isAuth() && userId == uid();
-      allow read, update, delete: if isAuth() && userId == uid();
-    }
-    
-    /* ========= CONTROLCICLO ========= */
-    match /apps/controlciclo/users/{userId}/{document=**} {
-      allow read, write: if isAuth() && userId == uid();
-    }
-    
-    /* ========= AUDITORÍA ========= */
-    match /audit/{auditId} {
-      allow read: if isAuth();
-      allow write: if isAdmin();
-    }
-    
+
     /* ========= DENY POR DEFECTO ========= */
+
     match /{document=**} {
       allow read, write: if false;
     }
