@@ -49,183 +49,149 @@ interface GalleryEditorProps {
   onPreview: () => void
 }
 
+// Helper function para cargar layout o crear uno default
+const loadGalleryLayoutData = async (userId: string): Promise<GalleryLayout> => {
+  const existingLayout = await loadGalleryLayout(userId)
+  if (existingLayout) {
+    return existingLayout
+  }
+  
+  // Crear layout por defecto
+  return {
+    ...createDefaultLayout(userId),
+    id: userId,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  } as GalleryLayout
+}
+
+// Helper para limitador de concurrencia
+async function withConcurrencyLimit<T>(tasks: (() => Promise<T>)[], limit = 5): Promise<T[]> {
+  const results: T[] = []
+  let index = 0
+  async function worker() {
+    while (index < tasks.length) {
+      const current = index++
+      results[current] = await tasks[current]()
+    }
+  }
+  const workers = Array.from({ length: Math.min(limit, tasks.length) }, () => worker())
+  await Promise.all(workers)
+  return results
+}
+
+// Helper para cargar archivos de galería
+const loadGalleryFilesData = async (userId: string, layout: GalleryLayout | null): Promise<GalleryFile[]> => {
+  if (!layout) return []
+  
+  try {
+    console.log('📂 Resolviendo carpeta Galería...')
+    const rootFolderId = await getControlBioFolder()
+    const galleryFolderId = await ensureFolderExists('Galería', rootFolderId)
+
+    // Leer archivos desde Firestore
+    const filesQuery = query(
+      collection(db, 'files'),
+      where('userId', '==', userId),
+      where('deletedAt', '==', null),
+      orderBy('createdAt', 'desc')
+    )
+    
+    const filesSnap = await getDocs(filesQuery)
+    const filesData = filesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+    
+    // Filtrar archivos de la galería
+    const galleryFiles = filesData.filter(file => 
+      file.ancestors && file.ancestors.includes(galleryFolderId) &&
+      (file.mime?.startsWith('image/') || file.mime?.startsWith('video/'))
+    )
+
+    // Cargar URLs para TODAS las imágenes (las del layout Y las disponibles)
+    const layoutFileIds = new Set((layout.items || []).map(i => i.fileId))
+    const filesInLayout = galleryFiles.filter(f => layoutFileIds.has(f.id))
+    const filesNotInLayout = galleryFiles.filter(f => !layoutFileIds.has(f.id) && f.mime?.startsWith('image/'))
+    const allFilesNeedingUrl = [...filesInLayout, ...filesNotInLayout]
+
+    // Cargar URLs con concurrencia limitada
+    const tasks = allFilesNeedingUrl.map((file) => async () => {
+      try {
+        const url = await getDownloadUrl(file.id)
+        return { id: file.id, url }
+      } catch (error) {
+        console.error(`❌ Error cargando URL para ${file.id}:`, error)
+        return { id: file.id, url: undefined, placeholder: true as const }
+      }
+    })
+
+    const urlResults = await withConcurrencyLimit(tasks, 5)
+    
+    // Mergear URLs
+    return galleryFiles.map(f => {
+      const match = urlResults.find(r => r.id === f.id)
+      if (!match) return f as GalleryFile
+      return { ...f, url: match.url, placeholder: match.url ? undefined : true } as GalleryFile
+    })
+  } catch (error) {
+    console.error('❌ Error cargando archivos:', error)
+    return []
+  }
+}
+
 export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
-  const [layout, setLayout] = useState<GalleryLayout | null>(null)
-  const [files, setFiles] = useState<GalleryFile[]>([])
+  const queryClient = useQueryClient()
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [localLayout, setLocalLayout] = useState<GalleryLayout | null>(null)
+  const [localFiles, setLocalFiles] = useState<GalleryFile[]>([])
   const canvasRef = useRef<HTMLDivElement>(null)
-  const hasLoadedRef = useRef<string | null>(null)
-  const loadingRef = useRef(false)
   const { toast } = useToast()
 
-  // Cargar layout y archivos (solo una vez por userId)
+  // Query para layout
+  const { data: layout = null, isLoading: layoutLoading } = useQuery({
+    queryKey: ['galleryLayout', userId],
+    queryFn: () => loadGalleryLayoutData(userId),
+    enabled: !!userId,
+    staleTime: 2 * 60 * 1000, // 2 minutos
+  })
+
+  // Query para archivos (depende del layout)
+  const { data: files = [], isLoading: filesLoading } = useQuery({
+    queryKey: ['galleryFiles', userId],
+    queryFn: () => loadGalleryFilesData(userId, layout),
+    enabled: !!userId && !!layout,
+    staleTime: 30 * 1000, // 30 segundos
+  })
+
+  // Sincronizar layout local con cache de TanStack Query
   useEffect(() => {
-    // Evitar carga múltiple (tanto en dev como en producción)
-    if (hasLoadedRef.current === userId || loadingRef.current) {
-      console.log('⏭️ Datos ya cargados o cargando para este usuario, omitiendo recarga')
-      return
+    if (layout) {
+      setLocalLayout(layout)
     }
-    
-    loadingRef.current = true
-    hasLoadedRef.current = userId
-    
-    const loadData = async () => {
-      setLoading(true)
-      try {
-        console.log('🔄 Iniciando carga de datos de galería...')
-        
-        // Cargar layout existente o crear uno por defecto
-        console.log('📋 Cargando layout...')
-        const existingLayout = await loadGalleryLayout(userId)
-        let currentLayout: GalleryLayout
-        if (existingLayout) {
-          console.log('✅ Layout existente cargado')
-          currentLayout = existingLayout
-          setLayout(currentLayout)
-        } else {
-          console.log('📝 Creando layout por defecto')
-          currentLayout = {
-            ...createDefaultLayout(userId),
-            id: userId,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          } as GalleryLayout
-          setLayout(currentLayout)
-        }
+  }, [layout])
 
-        // Cargar archivos de la galería (pasar el layout como parámetro)
-        console.log('📁 Cargando archivos de galería...')
-        await loadGalleryFiles(currentLayout)
-        console.log('✅ Carga de datos completada')
-      } catch (error) {
-        console.error('❌ Error cargando datos:', error)
-        toast({
-          title: 'Error',
-          description: 'No se pudieron cargar los datos de la galería',
-          variant: 'destructive',
-        })
-      } finally {
-        console.log('🏁 Finalizando carga (completado o con error)')
-        setLoading(false)
-        loadingRef.current = false
-      }
+  // Sincronizar files local con cache
+  useEffect(() => {
+    if (files.length > 0) {
+      setLocalFiles(files)
     }
-    
-    loadData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId])
+  }, [files])
 
-  // Limitador de concurrencia simple
-  async function withConcurrencyLimit<T>(tasks: (() => Promise<T>)[], limit = 5): Promise<T[]> {
-    const results: T[] = []
-    let index = 0
-    async function worker() {
-      while (index < tasks.length) {
-        const current = index++
-        results[current] = await tasks[current]()
-      }
-    }
-    const workers = Array.from({ length: Math.min(limit, tasks.length) }, () => worker())
-    await Promise.all(workers)
-    return results
-  }
-
-  const loadGalleryFiles = async (currentLayout?: GalleryLayout | null) => {
-    try {
-      console.log('📂 Resolviendo carpeta Galería...')
-      // Resolver carpeta Galería dinámicamente
-      const rootFolderId = await getControlBioFolder()
-      console.log('📂 Root folder ID:', rootFolderId)
-      const galleryFolderId = await ensureFolderExists('Galería', rootFolderId)
-      console.log('📂 Gallery folder ID:', galleryFolderId)
-
-      // Leer archivos desde la colección 'files' de Firestore
-      const filesQuery = query(
-        collection(db, 'files'),
-        where('userId', '==', userId),
-        where('deletedAt', '==', null),
-        orderBy('createdAt', 'desc')
-      )
-      
-      console.log('🔍 Buscando archivos en Firestore...')
-      const filesSnap = await getDocs(filesQuery)
-      const filesData = filesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id }))
-      console.log(`📄 Total archivos encontrados: ${filesData.length}`)
-      
-      // Filtrar archivos de la galería (que están en la subcarpeta "Galería")
-      const galleryFiles = filesData.filter(file => 
-        file.ancestors && file.ancestors.includes(galleryFolderId) &&
-        (file.mime?.startsWith('image/') || file.mime?.startsWith('video/'))
-      )
-      console.log(`🖼️ Archivos de galería filtrados: ${galleryFiles.length}`)
-      
-      // 1) Establecer metadatos sin bloquear por URLs
-      setFiles(galleryFiles)
-
-      // 2) Cargar URLs para TODAS las imágenes (las del layout Y las disponibles)
-      // Usar el layout pasado como parámetro o el estado actual
-      const layoutToUse = currentLayout || layout
-      const layoutFileIds = new Set((layoutToUse?.items || []).map(i => i.fileId))
-      
-      // Primero cargar URLs de imágenes en el layout (prioridad alta)
-      const filesInLayout = galleryFiles.filter(f => layoutFileIds.has(f.id))
-      // Luego cargar URLs de imágenes disponibles (prioridad baja)
-      const filesNotInLayout = galleryFiles.filter(f => !layoutFileIds.has(f.id) && f.mime?.startsWith('image/'))
-
-      // Crear tareas para todas las imágenes
-      const allFilesNeedingUrl = [...filesInLayout, ...filesNotInLayout]
-      
-      // Solo cargar URLs si hay archivos que necesitan URLs
-      if (allFilesNeedingUrl.length > 0) {
-        console.log(`🔗 Cargando URLs para ${allFilesNeedingUrl.length} archivos...`)
-        const tasks = allFilesNeedingUrl.map((file) => async () => {
-          try {
-            const url = await getDownloadUrl(file.id)
-            return { id: file.id, url }
-          } catch (error) {
-            console.error(`❌ Error cargando URL para ${file.id}:`, error)
-            return { id: file.id, url: undefined, placeholder: true as const }
-          }
-        })
-
-        // Cargar URLs con concurrencia limitada
-        const urlResults = await withConcurrencyLimit(tasks, 5)
-        console.log(`✅ URLs cargadas: ${urlResults.filter(r => r.url).length}/${urlResults.length}`)
-        
-        // 3) Mergear URLs en estado
-        setFiles(prev => prev.map(f => {
-          const match = urlResults.find(r => r.id === f.id)
-          if (!match) return f
-          return { ...f, url: match.url, placeholder: match.url ? undefined : true }
-        }))
-      } else {
-        console.log('ℹ️ No hay archivos que necesiten URLs')
-      }
-    } catch (error) {
-      console.error('❌ Error cargando archivos:', error)
-      // No lanzar el error para que el loading se complete
-      // Solo loguear para debugging
-    }
-  }
+  const loading = layoutLoading || filesLoading
+  const currentLayout = localLayout || layout
+  const currentFiles = localFiles.length > 0 ? localFiles : files
 
   const handleAddToLayout = (fileId: string) => {
-    if (!layout) return
+    if (!currentLayout) return
 
-    const file = files.find(f => f.id === fileId)
+    const file = currentFiles.find(f => f.id === fileId)
     if (!file) return
 
-    // Calcular aspect ratio
-    const aspectRatio = file.mime?.startsWith('image/') ? '16:9' : '1:1' // Default
-    
-    // Encontrar posición disponible
+    const aspectRatio = file.mime?.startsWith('image/') ? '16:9' : '1:1'
     const position = findNextAvailablePosition(
-      layout.items,
-      2, // width por defecto
-      2, // height por defecto
-      layout.settings.columns
+      currentLayout.items,
+      2, 2,
+      currentLayout.settings.columns
     )
 
     const newItem: GalleryLayoutItem = {
@@ -234,7 +200,7 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
       y: position.y,
       width: 2,
       height: 2,
-      zIndex: Math.max(0, ...layout.items.map(item => item.zIndex)) + 1,
+      zIndex: Math.max(0, ...currentLayout.items.map(item => item.zIndex)) + 1,
       aspectRatio,
       effects: {
         borderRadius: 8,
@@ -243,50 +209,49 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
       }
     }
 
-    setLayout({
-      ...layout,
-      items: [...layout.items, newItem]
-    })
+    const updatedLayout = {
+      ...currentLayout,
+      items: [...currentLayout.items, newItem]
+    }
+    setLocalLayout(updatedLayout)
   }
 
   const handleUpdateItem = (fileId: string, updates: Partial<GalleryLayoutItem>) => {
-    if (!layout) return
+    if (!currentLayout) return
 
-    setLayout({
-      ...layout,
-      items: layout.items.map(item =>
+    setLocalLayout({
+      ...currentLayout,
+      items: currentLayout.items.map(item =>
         item.fileId === fileId ? { ...item, ...updates } : item
       )
     })
   }
 
   const handleRemoveItem = (fileId: string) => {
-    if (!layout) return
+    if (!currentLayout) return
 
-    setLayout({
-      ...layout,
-      items: layout.items.filter(item => item.fileId !== fileId)
+    setLocalLayout({
+      ...currentLayout,
+      items: currentLayout.items.filter(item => item.fileId !== fileId)
     })
     setSelectedItem(null)
   }
 
   const handleAutoLayout = () => {
-    if (!layout) return
+    if (!currentLayout) return
 
-    // Agregar todas las imágenes disponibles con layout automático
-    const availableFiles = files.filter(file => 
-      !layout.items.some(item => item.fileId === file.id) &&
+    const availableFiles = currentFiles.filter(file => 
+      !currentLayout.items.some(item => item.fileId === file.id) &&
       file.mime?.startsWith('image/')
     )
 
     const newItems: GalleryLayoutItem[] = []
-    let baseZ = Math.max(0, ...layout.items.map(item => item.zIndex))
+    let baseZ = Math.max(0, ...currentLayout.items.map(item => item.zIndex))
     for (const file of availableFiles) {
       const position = findNextAvailablePosition(
-        [...layout.items, ...newItems],
-        2,
-        2,
-        layout.settings.columns
+        [...currentLayout.items, ...newItems],
+        2, 2,
+        currentLayout.settings.columns
       )
       newItems.push({
         fileId: file.id,
@@ -304,18 +269,20 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
       })
     }
 
-    setLayout({
-      ...layout,
-      items: [...layout.items, ...newItems]
+    setLocalLayout({
+      ...currentLayout,
+      items: [...currentLayout.items, ...newItems]
     })
   }
 
   const handleSaveLayout = async () => {
-    if (!layout) return
+    if (!currentLayout) return
 
     setSaving(true)
     try {
-      await saveGalleryLayout(userId, layout)
+      await saveGalleryLayout(userId, currentLayout)
+      // Actualizar cache
+      queryClient.setQueryData(['galleryLayout', userId], currentLayout)
       toast({
         title: 'Layout guardado',
         description: 'Tu galería se ha guardado correctamente',
@@ -333,11 +300,11 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
   }
 
   const handleUpdateSettings = (updates: Partial<GalleryLayout['settings']>) => {
-    if (!layout) return
+    if (!currentLayout) return
 
-    setLayout({
-      ...layout,
-      settings: { ...layout.settings, ...updates }
+    setLocalLayout({
+      ...currentLayout,
+      settings: { ...currentLayout.settings, ...updates }
     })
   }
 
@@ -349,7 +316,7 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
     )
   }
 
-  if (!layout) {
+  if (!currentLayout) {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Error cargando el editor de galería</p>
@@ -358,13 +325,13 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
   }
 
   const canvasStyle = {
-    width: `${layout.settings.columns * layout.settings.gridSize}px`,
+    width: `${currentLayout.settings.columns * currentLayout.settings.gridSize}px`,
     height: '600px',
     backgroundImage: `
       linear-gradient(to right, #e5e7eb 1px, transparent 1px),
       linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)
     `,
-    backgroundSize: `${layout.settings.gridSize}px ${layout.settings.gridSize}px`,
+    backgroundSize: `${currentLayout.settings.gridSize}px ${currentLayout.settings.gridSize}px`,
   }
 
   return (
@@ -374,7 +341,7 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
         <div>
           <h3 className="text-lg font-semibold">Editor de Galería</h3>
           <p className="text-sm text-muted-foreground">
-            {layout.items.length} elementos en el layout
+            {currentLayout.items.length} elementos en el layout
           </p>
         </div>
         <div className="flex gap-2">
@@ -419,7 +386,7 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
                   type="number"
                   min="1"
                   max="20"
-                  value={layout.settings.columns}
+                  value={currentLayout.settings.columns}
                   onChange={(e) => handleUpdateSettings({ 
                     columns: parseInt(e.target.value) || 12 
                   })}
@@ -432,7 +399,7 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
                   type="number"
                   min="50"
                   max="200"
-                  value={layout.settings.gridSize}
+                  value={currentLayout.settings.gridSize}
                   onChange={(e) => handleUpdateSettings({ 
                     gridSize: parseInt(e.target.value) || 100 
                   })}
@@ -445,7 +412,7 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
                   type="number"
                   min="0"
                   max="50"
-                  value={layout.settings.gap}
+                  value={currentLayout.settings.gap}
                   onChange={(e) => handleUpdateSettings({ 
                     gap: parseInt(e.target.value) || 10 
                   })}
@@ -456,10 +423,10 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
         </Card>
       )}
 
-      {/* Header de nuevas imágenes (no visible en la vista pública) */}
+      {/* Header de nuevas imágenes */}
       <ImageStagingArea
-        files={files}
-        layoutItems={layout.items}
+        files={currentFiles}
+        layoutItems={currentLayout.items}
         onAddToLayout={handleAddToLayout}
         onAutoLayout={handleAutoLayout}
         onUploadMore={() => {
@@ -476,7 +443,7 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
           <div className="flex items-center justify-between mb-4">
             <h4 className="font-semibold">Canvas de Diseño</h4>
             <div className="text-sm text-muted-foreground">
-              {layout.settings.columns} columnas × {Math.ceil(600 / layout.settings.gridSize)} filas
+              {currentLayout.settings.columns} columnas × {Math.ceil(600 / currentLayout.settings.gridSize)} filas
             </div>
           </div>
 
@@ -486,16 +453,16 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
               className="relative"
               style={canvasStyle}
             >
-              {layout.items.map((item) => {
-                const file = files.find(f => f.id === item.fileId)
+              {currentLayout.items.map((item) => {
+                const file = currentFiles.find(f => f.id === item.fileId)
                 return (
                   <ResizableImageCard
                     key={item.fileId}
                     item={item}
                     imageUrl={file?.url}
                     imageName={file?.name || 'Imagen'}
-                    gridSize={layout.settings.gridSize}
-                    gap={layout.settings.gap}
+                    gridSize={currentLayout.settings.gridSize}
+                    gap={currentLayout.settings.gap}
                     onUpdate={(updates) => handleUpdateItem(item.fileId, updates)}
                     onRemove={() => handleRemoveItem(item.fileId)}
                     isSelected={selectedItem === item.fileId}

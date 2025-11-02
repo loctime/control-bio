@@ -250,7 +250,7 @@ export default function DashboardPage() {
             />
           </TabsContent>
 
-          <TabsContent value="gallery" className="space-y-6 mt-0" forceMount={false}>
+          <TabsContent value="gallery" className="space-y-6 mt-0">
             <GalleryManager 
               userId={user.uid}
               carousels={carousels}
