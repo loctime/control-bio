@@ -19,13 +19,13 @@ service cloud.firestore {
         : null;
     }
     
-    // Roles desde documento - CONTROLD (para otras apps)
+    // Roles desde documento - CONTROLREMITO (para otras apps)
     function userDocExists() {
-      return isAuth() && exists(/databases/$(db)/documents/apps/controld/users/$(uid()));
+      return isAuth() && exists(/databases/$(db)/documents/apps/controlRemito/users/$(uid()));
     }
     function userRole() {
       return isAuth() && userDocExists()
-        ? get(/databases/$(db)/documents/apps/controld/users/$(uid())).data.role
+        ? get(/databases/$(db)/documents/apps/controlRemito/users/$(uid())).data.role
         : null;
     }
     
@@ -33,7 +33,7 @@ service cloud.firestore {
     function isControlStoreMaxDev() { return controlStoreUserRole() == 'maxdev'; }
     function isControlStoreAdmin()  { return controlStoreUserRole() == 'admin' || controlStoreUserRole() == 'maxdev'; }
     
-    // Helpers para CONTROLD y otras apps
+    // Helpers para CONTROLREMITO y otras apps
     function isMaxDev() { return userRole() == 'maxdev'; }
     function isAdmin()  { return userRole() == 'admin' || userRole() == 'maxdev'; }
     function isFactory(){ return userRole() == 'factory'; }
@@ -210,22 +210,33 @@ service cloud.firestore {
     
     // Layouts de galería de controlbio
     match /apps/controlbio/galleryLayouts/{layoutId} {
-      allow read: if publicRead("isPublic") || (isAuth() && resource.data.userId == uid());
+      // Permitir lectura si:
+      // 1. Es público y existe, O
+      // 2. El usuario autenticado es el dueño (layoutId == userId) - cubre documentos existentes y no existentes
+      allow read: if 
+        (exists(resource.path) && publicRead("isPublic")) ||
+        (isAuth() && layoutId == uid());
     
-      allow create: if ownerIs("userId")
+      allow create: if isAuth()
+        && layoutId == uid()
         && request.resource.data.userId == uid()
         && request.resource.data.items is list
         && request.resource.data.settings is map
         && isBool("isPublic");
     
       allow update: if isAuth()
+        && layoutId == uid()
+        && exists(resource.path)
         && resource.data.userId == uid()
         && (!("userId" in request.resource.data) || request.resource.data.userId == resource.data.userId)
         && (!("items" in request.resource.data) || request.resource.data.items is list)
         && (!("settings" in request.resource.data) || request.resource.data.settings is map)
         && (!("isPublic" in request.resource.data) || request.resource.data.isPublic is bool);
     
-      allow delete: if isAuth() && resource.data.userId == uid();
+      allow delete: if isAuth() 
+        && layoutId == uid()
+        && exists(resource.path)
+        && resource.data.userId == uid();
     }
     
     
