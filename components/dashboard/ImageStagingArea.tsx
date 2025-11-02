@@ -80,8 +80,8 @@ export function ImageStagingArea({
 
   return (
     <Card className="h-64">
-      <CardContent className="p-4 h-full">
-        <div className="flex items-center justify-between mb-4">
+      <CardContent className="p-4 h-full flex flex-col">
+        <div className="flex items-center justify-between mb-4 flex-shrink-0">
           <div>
             <h3 className="font-semibold">Imágenes disponibles</h3>
             <p className="text-sm text-muted-foreground">
@@ -108,8 +108,8 @@ export function ImageStagingArea({
           </div>
         </div>
 
-        <div className="h-48 w-full overflow-x-auto overflow-y-hidden">
-          <div className="flex gap-2 pb-2" style={{ minWidth: 'min-content' }}>
+        <div className="h-48 flex-1 min-h-0 overflow-x-auto overflow-y-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div className="flex gap-2 pb-2 px-1 inline-flex">
             {availableFiles.map((file) => {
               const isImage = file.mime?.startsWith('image/')
               const isDragging = draggedFile === file.id
@@ -117,14 +117,20 @@ export function ImageStagingArea({
               return (
                 <Card
                   key={file.id}
-                  className={`cursor-move transition-all duration-200 shrink-0 ${
+                  className={`cursor-move transition-all duration-200 ${
                     isDragging ? 'opacity-50 scale-95' : 'hover:shadow-md'
                   } ${isImage ? 'hover:border-primary' : 'opacity-60'}`}
                   draggable={isImage}
                   onDragStart={() => handleDragStart(file.id)}
                   onDragEnd={handleDragEnd}
                   onClick={() => isImage && onAddToLayout(file.id)}
-                  style={{ width: '120px', minWidth: '120px', flexShrink: 0 }}
+                  style={{ 
+                    width: '120px', 
+                    minWidth: '120px', 
+                    maxWidth: '120px',
+                    flexShrink: 0,
+                    flexGrow: 0
+                  }}
                 >
                   <CardContent className="p-2">
                     <div className="aspect-square relative bg-muted rounded overflow-hidden group w-full">
