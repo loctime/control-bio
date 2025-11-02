@@ -36,7 +36,14 @@ export function ResizableImageCard({
   const [isResizing, setIsResizing] = useState(false)
   const [resizeHandle, setResizeHandle] = useState<ResizeHandle | null>(null)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
-  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 })
+  const [resizeStart, setResizeStart] = useState({ 
+    x: 0, 
+    y: 0, 
+    width: 0, 
+    height: 0,
+    startX: 0,
+    startY: 0
+  })
   const cardRef = useRef<HTMLDivElement>(null)
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -64,9 +71,11 @@ export function ResizableImageCard({
       x: e.clientX,
       y: e.clientY,
       width: item.width,
-      height: item.height
+      height: item.height,
+      startX: item.x,
+      startY: item.y
     })
-  }, [item.width, item.height])
+  }, [item.width, item.height, item.x, item.y])
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (isDragging) {
@@ -80,48 +89,54 @@ export function ResizableImageCard({
       const deltaX = e.clientX - resizeStart.x
       const deltaY = e.clientY - resizeStart.y
       
+      // Convertir delta de píxeles a unidades de grid
+      const deltaXGrid = Math.round(deltaX / gridSize)
+      const deltaYGrid = Math.round(deltaY / gridSize)
+      
       let newWidth = resizeStart.width
       let newHeight = resizeStart.height
-      let newX = item.x
-      let newY = item.y
+      let newX = resizeStart.startX
+      let newY = resizeStart.startY
       
       // Calcular nuevas dimensiones basado en el handle
       switch (resizeHandle) {
-        case 'se': // Esquina inferior derecha
-          newWidth = Math.max(1, Math.round((resizeStart.width + deltaX) / gridSize))
-          newHeight = Math.max(1, Math.round((resizeStart.height + deltaY) / gridSize))
+        case 'se': // Esquina inferior derecha (solo crece hacia abajo-derecha)
+          newWidth = Math.max(1, resizeStart.width + deltaXGrid)
+          newHeight = Math.max(1, resizeStart.height + deltaYGrid)
           break
-        case 'sw': // Esquina inferior izquierda
-          newWidth = Math.max(1, Math.round((resizeStart.width - deltaX) / gridSize))
-          newHeight = Math.max(1, Math.round((resizeStart.height + deltaY) / gridSize))
-          newX = Math.max(0, Math.round((resizeStart.x - deltaX) / gridSize))
+        case 'sw': // Esquina inferior izquierda (crece hacia abajo-izquierda o reduce desde derecha)
+          // Cuando arrastras hacia la izquierda, deltaX es negativo, así que el ancho aumenta
+          // Cuando arrastras hacia la derecha, deltaX es positivo, así que el ancho disminuye
+          newWidth = Math.max(1, resizeStart.width - deltaXGrid)
+          newHeight = Math.max(1, resizeStart.height + deltaYGrid)
+          // Calcular el cambio real del ancho
+          const widthChangeSW = resizeStart.width - newWidth
+          // Si el ancho cambió, mover la posición X para mantener la esquina opuesta fija
+          newX = Math.max(0, resizeStart.startX + widthChangeSW)
           break
-        case 'ne': // Esquina superior derecha
-          newWidth = Math.max(1, Math.round((resizeStart.width + deltaX) / gridSize))
-          newHeight = Math.max(1, Math.round((resizeStart.height - deltaY) / gridSize))
-          newY = Math.max(0, Math.round((resizeStart.y - deltaY) / gridSize))
+        case 'ne': // Esquina superior derecha (crece hacia arriba-derecha o reduce desde abajo-izquierda)
+          newWidth = Math.max(1, resizeStart.width + deltaXGrid)
+          newHeight = Math.max(1, resizeStart.height - deltaYGrid)
+          // Calcular el cambio real de la altura
+          const heightChangeNE = resizeStart.height - newHeight
+          // Si la altura cambió, mover la posición Y para mantener la esquina opuesta fija
+          newY = Math.max(0, resizeStart.startY + heightChangeNE)
           break
-        case 'nw': // Esquina superior izquierda
-          newWidth = Math.max(1, Math.round((resizeStart.width - deltaX) / gridSize))
-          newHeight = Math.max(1, Math.round((resizeStart.height - deltaY) / gridSize))
-          newX = Math.max(0, Math.round((resizeStart.x - deltaX) / gridSize))
-          newY = Math.max(0, Math.round((resizeStart.y - deltaY) / gridSize))
+        case 'nw': // Esquina superior izquierda (crece hacia arriba-izquierda o reduce desde abajo-derecha)
+          newWidth = Math.max(1, resizeStart.width - deltaXGrid)
+          newHeight = Math.max(1, resizeStart.height - deltaYGrid)
+          // Calcular los cambios reales
+          const widthChangeNW = resizeStart.width - newWidth
+          const heightChangeNW = resizeStart.height - newHeight
+          // Mover ambas posiciones para mantener la esquina opuesta fija
+          newX = Math.max(0, resizeStart.startX + widthChangeNW)
+          newY = Math.max(0, resizeStart.startY + heightChangeNW)
           break
       }
       
-      // Mantener aspect ratio si es necesario
-      const aspectRatio = parseAspectRatio(item.aspectRatio)
-      if (aspectRatio) {
-        const targetHeight = Math.round(newWidth / aspectRatio)
-        const targetWidth = Math.round(newHeight * aspectRatio)
-        
-        // Usar la dimensión que mantenga mejor el aspect ratio
-        if (Math.abs(targetHeight - newHeight) < Math.abs(targetWidth - newWidth)) {
-          newHeight = targetHeight
-        } else {
-          newWidth = targetWidth
-        }
-      }
+      // Mantener aspect ratio solo si el usuario mantiene Shift presionado (opcional)
+      // Por ahora, permitimos redimensionamiento libre para mejor experiencia de usuario
+      // Si en el futuro queremos forzar aspect ratio, podemos agregar una opción de configuración
       
       onUpdate({ 
         x: newX, 

@@ -66,25 +66,40 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
   const loadData = async () => {
     setLoading(true)
     try {
+      console.log('🔄 Iniciando carga de datos de galería...')
+      
       // Cargar layout existente o crear uno por defecto
+      console.log('📋 Cargando layout...')
       const existingLayout = await loadGalleryLayout(userId)
+      let currentLayout: GalleryLayout
       if (existingLayout) {
-        setLayout(existingLayout)
+        console.log('✅ Layout existente cargado')
+        currentLayout = existingLayout
+        setLayout(currentLayout)
       } else {
-        const defaultLayout = createDefaultLayout(userId)
-        setLayout(defaultLayout)
+        console.log('📝 Creando layout por defecto')
+        currentLayout = {
+          ...createDefaultLayout(userId),
+          id: userId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        } as GalleryLayout
+        setLayout(currentLayout)
       }
 
-      // Cargar archivos de la galería
-      await loadGalleryFiles()
+      // Cargar archivos de la galería (pasar el layout como parámetro)
+      console.log('📁 Cargando archivos de galería...')
+      await loadGalleryFiles(currentLayout)
+      console.log('✅ Carga de datos completada')
     } catch (error) {
-      console.error('Error cargando datos:', error)
+      console.error('❌ Error cargando datos:', error)
       toast({
         title: 'Error',
         description: 'No se pudieron cargar los datos de la galería',
         variant: 'destructive',
       })
     } finally {
+      console.log('🏁 Finalizando carga (completado o con error)')
       setLoading(false)
     }
   }
@@ -104,11 +119,14 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
     return results
   }
 
-  const loadGalleryFiles = async () => {
+  const loadGalleryFiles = async (currentLayout?: GalleryLayout | null) => {
     try {
+      console.log('📂 Resolviendo carpeta Galería...')
       // Resolver carpeta Galería dinámicamente
       const rootFolderId = await getControlBioFolder()
+      console.log('📂 Root folder ID:', rootFolderId)
       const galleryFolderId = await ensureFolderExists('Galería', rootFolderId)
+      console.log('📂 Gallery folder ID:', galleryFolderId)
 
       // Leer archivos desde la colección 'files' de Firestore
       const filesQuery = query(
@@ -118,42 +136,64 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
         orderBy('createdAt', 'desc')
       )
       
+      console.log('🔍 Buscando archivos en Firestore...')
       const filesSnap = await getDocs(filesQuery)
       const filesData = filesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+      console.log(`📄 Total archivos encontrados: ${filesData.length}`)
       
       // Filtrar archivos de la galería (que están en la subcarpeta "Galería")
       const galleryFiles = filesData.filter(file => 
         file.ancestors && file.ancestors.includes(galleryFolderId) &&
         (file.mime?.startsWith('image/') || file.mime?.startsWith('video/'))
       )
+      console.log(`🖼️ Archivos de galería filtrados: ${galleryFiles.length}`)
       
       // 1) Establecer metadatos sin bloquear por URLs
       setFiles(galleryFiles)
 
-      // 2) Pedir URLs SOLO para los que están ya en el layout, con concurrencia limitada
-      const layoutFileIds = new Set((layout?.items || []).map(i => i.fileId))
-      const filesNeedingUrl = galleryFiles.filter(f => layoutFileIds.has(f.id))
+      // 2) Cargar URLs para TODAS las imágenes (las del layout Y las disponibles)
+      // Usar el layout pasado como parámetro o el estado actual
+      const layoutToUse = currentLayout || layout
+      const layoutFileIds = new Set((layoutToUse?.items || []).map(i => i.fileId))
+      
+      // Primero cargar URLs de imágenes en el layout (prioridad alta)
+      const filesInLayout = galleryFiles.filter(f => layoutFileIds.has(f.id))
+      // Luego cargar URLs de imágenes disponibles (prioridad baja)
+      const filesNotInLayout = galleryFiles.filter(f => !layoutFileIds.has(f.id) && f.mime?.startsWith('image/'))
 
-      const tasks = filesNeedingUrl.map((file) => async () => {
-        try {
-          const url = await getDownloadUrl(file.id)
-          return { id: file.id, url }
-        } catch (error) {
-          console.error(`Error cargando URL para ${file.id}:`, error)
-          return { id: file.id, url: undefined, placeholder: true as const }
-        }
-      })
+      // Crear tareas para todas las imágenes
+      const allFilesNeedingUrl = [...filesInLayout, ...filesNotInLayout]
+      
+      // Solo cargar URLs si hay archivos que necesitan URLs
+      if (allFilesNeedingUrl.length > 0) {
+        console.log(`🔗 Cargando URLs para ${allFilesNeedingUrl.length} archivos...`)
+        const tasks = allFilesNeedingUrl.map((file) => async () => {
+          try {
+            const url = await getDownloadUrl(file.id)
+            return { id: file.id, url }
+          } catch (error) {
+            console.error(`❌ Error cargando URL para ${file.id}:`, error)
+            return { id: file.id, url: undefined, placeholder: true as const }
+          }
+        })
 
-      const urlResults = await withConcurrencyLimit(tasks, 5)
-      // 3) Mergear URLs en estado
-      setFiles(prev => prev.map(f => {
-        const match = urlResults.find(r => r.id === f.id)
-        if (!match) return f
-        return { ...f, url: match.url, placeholder: match.url ? undefined : true }
-      }))
+        // Cargar URLs con concurrencia limitada
+        const urlResults = await withConcurrencyLimit(tasks, 5)
+        console.log(`✅ URLs cargadas: ${urlResults.filter(r => r.url).length}/${urlResults.length}`)
+        
+        // 3) Mergear URLs en estado
+        setFiles(prev => prev.map(f => {
+          const match = urlResults.find(r => r.id === f.id)
+          if (!match) return f
+          return { ...f, url: match.url, placeholder: match.url ? undefined : true }
+        }))
+      } else {
+        console.log('ℹ️ No hay archivos que necesiten URLs')
+      }
     } catch (error) {
-      console.error('Error cargando archivos:', error)
-      throw error
+      console.error('❌ Error cargando archivos:', error)
+      // No lanzar el error para que el loading se complete
+      // Solo loguear para debugging
     }
   }
 

@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { ImageIcon, Video, FileImage, LayoutGrid, Shuffle } from 'lucide-react'
 import type { GalleryLayoutItem } from '@/types'
 
@@ -109,8 +108,8 @@ export function ImageStagingArea({
           </div>
         </div>
 
-        <ScrollArea className="h-48">
-          <div className="grid grid-cols-4 gap-2">
+        <div className="h-48 w-full overflow-x-auto overflow-y-hidden">
+          <div className="flex gap-2 pb-2" style={{ minWidth: 'min-content' }}>
             {availableFiles.map((file) => {
               const isImage = file.mime?.startsWith('image/')
               const isDragging = draggedFile === file.id
@@ -118,22 +117,24 @@ export function ImageStagingArea({
               return (
                 <Card
                   key={file.id}
-                  className={`cursor-move transition-all duration-200 ${
+                  className={`cursor-move transition-all duration-200 shrink-0 ${
                     isDragging ? 'opacity-50 scale-95' : 'hover:shadow-md'
                   } ${isImage ? 'hover:border-primary' : 'opacity-60'}`}
                   draggable={isImage}
                   onDragStart={() => handleDragStart(file.id)}
                   onDragEnd={handleDragEnd}
                   onClick={() => isImage && onAddToLayout(file.id)}
+                  style={{ width: '120px', minWidth: '120px', flexShrink: 0 }}
                 >
                   <CardContent className="p-2">
-                    <div className="aspect-square relative bg-muted rounded overflow-hidden group">
+                    <div className="aspect-square relative bg-muted rounded overflow-hidden group w-full">
                       {file.url ? (
                         isImage ? (
                           <img
                             src={file.url}
                             alt={file.name}
                             className="w-full h-full object-cover"
+                            loading="lazy"
                           />
                         ) : (
                           <div className="w-full h-full flex flex-col items-center justify-center">
@@ -181,7 +182,7 @@ export function ImageStagingArea({
               )
             })}
           </div>
-        </ScrollArea>
+        </div>
       </CardContent>
     </Card>
   )
