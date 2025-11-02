@@ -58,60 +58,65 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
   const [showSettings, setShowSettings] = useState(false)
   const canvasRef = useRef<HTMLDivElement>(null)
   const hasLoadedRef = useRef<string | null>(null)
+  const loadingRef = useRef(false)
   const { toast } = useToast()
 
   // Cargar layout y archivos (solo una vez por userId)
   useEffect(() => {
-    // Evitar carga doble en modo desarrollo (React 18+ StrictMode)
-    if (hasLoadedRef.current === userId) {
-      console.log('⏭️ Datos ya cargados para este usuario, omitiendo recarga')
+    // Evitar carga múltiple (tanto en dev como en producción)
+    if (hasLoadedRef.current === userId || loadingRef.current) {
+      console.log('⏭️ Datos ya cargados o cargando para este usuario, omitiendo recarga')
       return
     }
     
+    loadingRef.current = true
     hasLoadedRef.current = userId
-    loadData()
-  }, [userId])
+    
+    const loadData = async () => {
+      setLoading(true)
+      try {
+        console.log('🔄 Iniciando carga de datos de galería...')
+        
+        // Cargar layout existente o crear uno por defecto
+        console.log('📋 Cargando layout...')
+        const existingLayout = await loadGalleryLayout(userId)
+        let currentLayout: GalleryLayout
+        if (existingLayout) {
+          console.log('✅ Layout existente cargado')
+          currentLayout = existingLayout
+          setLayout(currentLayout)
+        } else {
+          console.log('📝 Creando layout por defecto')
+          currentLayout = {
+            ...createDefaultLayout(userId),
+            id: userId,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          } as GalleryLayout
+          setLayout(currentLayout)
+        }
 
-  const loadData = async () => {
-    setLoading(true)
-    try {
-      console.log('🔄 Iniciando carga de datos de galería...')
-      
-      // Cargar layout existente o crear uno por defecto
-      console.log('📋 Cargando layout...')
-      const existingLayout = await loadGalleryLayout(userId)
-      let currentLayout: GalleryLayout
-      if (existingLayout) {
-        console.log('✅ Layout existente cargado')
-        currentLayout = existingLayout
-        setLayout(currentLayout)
-      } else {
-        console.log('📝 Creando layout por defecto')
-        currentLayout = {
-          ...createDefaultLayout(userId),
-          id: userId,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        } as GalleryLayout
-        setLayout(currentLayout)
+        // Cargar archivos de la galería (pasar el layout como parámetro)
+        console.log('📁 Cargando archivos de galería...')
+        await loadGalleryFiles(currentLayout)
+        console.log('✅ Carga de datos completada')
+      } catch (error) {
+        console.error('❌ Error cargando datos:', error)
+        toast({
+          title: 'Error',
+          description: 'No se pudieron cargar los datos de la galería',
+          variant: 'destructive',
+        })
+      } finally {
+        console.log('🏁 Finalizando carga (completado o con error)')
+        setLoading(false)
+        loadingRef.current = false
       }
-
-      // Cargar archivos de la galería (pasar el layout como parámetro)
-      console.log('📁 Cargando archivos de galería...')
-      await loadGalleryFiles(currentLayout)
-      console.log('✅ Carga de datos completada')
-    } catch (error) {
-      console.error('❌ Error cargando datos:', error)
-      toast({
-        title: 'Error',
-        description: 'No se pudieron cargar los datos de la galería',
-        variant: 'destructive',
-      })
-    } finally {
-      console.log('🏁 Finalizando carga (completado o con error)')
-      setLoading(false)
     }
-  }
+    
+    loadData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId])
 
   // Limitador de concurrencia simple
   async function withConcurrencyLimit<T>(tasks: (() => Promise<T>)[], limit = 5): Promise<T[]> {
