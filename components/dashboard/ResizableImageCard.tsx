@@ -2,6 +2,8 @@
 
 import React from 'react'
 import { useState, useRef, useCallback } from 'react'
+import { useDraggable } from '@dnd-kit/core'
+import { CSS } from '@dnd-kit/utilities'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -33,10 +35,8 @@ export function ResizableImageCard({
   isSelected = false,
   onSelect
 }: ResizableImageCardProps) {
-  const [isDragging, setIsDragging] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
   const [resizeHandle, setResizeHandle] = useState<ResizeHandle | null>(null)
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [showPreview, setShowPreview] = useState(false)
   const [resizeStart, setResizeStart] = useState({ 
     x: 0, 
@@ -48,20 +48,39 @@ export function ResizableImageCard({
   })
   const cardRef = useRef<HTMLDivElement>(null)
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+  // Usar @dnd-kit para drag & drop
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    isDragging,
+  } = useDraggable({
+    id: item.fileId,
+    disabled: isResizing, // Deshabilitar drag mientras se redimensiona
+  })
+
+  // Aplicar transformación de @dnd-kit (solo para feedback visual durante el drag)
+  const dragStyle = transform ? {
+    transform: CSS.Translate.toString(transform),
+  } : undefined
+
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    // Solo permitir drag desde el handle de grip o el área de la imagen (no desde botones)
+    const target = e.target as HTMLElement
+    const isButton = target.closest('button')
+    const isResizeHandle = target.classList.contains('resize-handle')
+    
+    if (isButton || isResizeHandle) {
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
     
     if (onSelect) {
       onSelect()
     }
-    
-    setIsDragging(true)
-    setDragStart({
-      x: e.clientX - (item.x * gridSize),
-      y: e.clientY - (item.y * gridSize)
-    })
-  }, [item.x, item.y, gridSize, onSelect])
+  }, [onSelect])
 
   const handleResizeMouseDown = useCallback((e: React.MouseEvent, handle: ResizeHandle) => {
     e.preventDefault()
@@ -80,13 +99,7 @@ export function ResizableImageCard({
   }, [item.width, item.height, item.x, item.y])
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (isDragging) {
-      const newX = Math.max(0, Math.round((e.clientX - dragStart.x) / gridSize))
-      const newY = Math.max(0, Math.round((e.clientY - dragStart.y) / gridSize))
-      
-      onUpdate({ x: newX, y: newY })
-    }
-    
+    // El drag ahora se maneja con @dnd-kit, solo manejamos resize aquí
     if (isResizing && resizeHandle) {
       const deltaX = e.clientX - resizeStart.x
       const deltaY = e.clientY - resizeStart.y
@@ -147,17 +160,16 @@ export function ResizableImageCard({
         height: newHeight 
       })
     }
-  }, [isDragging, isResizing, resizeHandle, dragStart, resizeStart, item, gridSize, onUpdate])
+  }, [isResizing, resizeHandle, resizeStart, gridSize, onUpdate])
 
   const handleMouseUp = useCallback(() => {
-    setIsDragging(false)
     setIsResizing(false)
     setResizeHandle(null)
   }, [])
 
-  // Agregar event listeners globales
+  // Agregar event listeners globales solo para resize
   React.useEffect(() => {
-    if (isDragging || isResizing) {
+    if (isResizing) {
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', handleMouseUp)
       
@@ -166,7 +178,7 @@ export function ResizableImageCard({
         document.removeEventListener('mouseup', handleMouseUp)
       }
     }
-  }, [isDragging, isResizing, handleMouseMove, handleMouseUp])
+  }, [isResizing, handleMouseMove, handleMouseUp])
 
   const parseAspectRatio = (ratio: string): number | null => {
     const [w, h] = ratio.split(':').map(Number)
@@ -191,25 +203,37 @@ export function ResizableImageCard({
     })
   }
 
-  const style = {
+  // Combinar estilos: posición base + transformación de drag + rotación
+  const baseStyle = {
     position: 'absolute' as const,
     left: `${item.x * gridSize + gap}px`,
     top: `${item.y * gridSize + gap}px`,
     width: `${item.width * gridSize - gap}px`,
     height: `${item.height * gridSize - gap}px`,
-    zIndex: item.zIndex,
-    transform: item.effects?.rotation ? `rotate(${item.effects.rotation}deg)` : undefined,
+    zIndex: isDragging ? item.zIndex + 1000 : item.zIndex, // Elevar durante drag
+  }
+
+  const rotationTransform = item.effects?.rotation ? `rotate(${item.effects.rotation}deg)` : undefined
+  const combinedTransform = [dragStyle?.transform, rotationTransform].filter(Boolean).join(' ')
+  
+  const style = {
+    ...baseStyle,
+    ...dragStyle,
+    transform: combinedTransform || undefined,
   }
 
   return (
     <>
       <Card
-        ref={cardRef}
+        ref={(node) => {
+          cardRef.current = node
+          setNodeRef(node) // Conectar con @dnd-kit
+        }}
         className={`absolute transition-all duration-200 ${
           isSelected ? 'ring-2 ring-primary ring-offset-2' : ''
-        } ${isDragging || isResizing ? 'opacity-80' : ''}`}
+        } ${isDragging ? 'opacity-80 z-[9999]' : ''} ${isResizing ? 'opacity-80' : ''}`}
         style={style}
-        onMouseDown={handleMouseDown}
+        onMouseDown={handleDragStart}
       >
         <CardContent className="p-0 h-full relative group">
           {/* Imagen */}
@@ -236,8 +260,12 @@ export function ResizableImageCard({
 
           {/* Overlay de controles */}
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200">
-            {/* Handle de arrastre */}
-            <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            {/* Handle de arrastre con @dnd-kit */}
+            <div 
+              className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+              {...listeners}
+              {...attributes}
+            >
               <GripVertical className="h-4 w-4 text-white drop-shadow-lg" />
             </div>
 
@@ -288,22 +316,22 @@ export function ResizableImageCard({
               <>
                 {/* Esquina superior izquierda */}
                 <div
-                  className="absolute -top-1 -left-1 w-3 h-3 bg-primary rounded-full cursor-nw-resize opacity-0 group-hover:opacity-100"
+                  className="resize-handle absolute -top-1 -left-1 w-3 h-3 bg-primary rounded-full cursor-nw-resize opacity-0 group-hover:opacity-100"
                   onMouseDown={(e) => handleResizeMouseDown(e, 'nw')}
                 />
                 {/* Esquina superior derecha */}
                 <div
-                  className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full cursor-ne-resize opacity-0 group-hover:opacity-100"
+                  className="resize-handle absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full cursor-ne-resize opacity-0 group-hover:opacity-100"
                   onMouseDown={(e) => handleResizeMouseDown(e, 'ne')}
                 />
                 {/* Esquina inferior izquierda */}
                 <div
-                  className="absolute -bottom-1 -left-1 w-3 h-3 bg-primary rounded-full cursor-sw-resize opacity-0 group-hover:opacity-100"
+                  className="resize-handle absolute -bottom-1 -left-1 w-3 h-3 bg-primary rounded-full cursor-sw-resize opacity-0 group-hover:opacity-100"
                   onMouseDown={(e) => handleResizeMouseDown(e, 'sw')}
                 />
                 {/* Esquina inferior derecha */}
                 <div
-                  className="absolute -bottom-1 -right-1 w-3 h-3 bg-primary rounded-full cursor-se-resize opacity-0 group-hover:opacity-100"
+                  className="resize-handle absolute -bottom-1 -right-1 w-3 h-3 bg-primary rounded-full cursor-se-resize opacity-0 group-hover:opacity-100"
                   onMouseDown={(e) => handleResizeMouseDown(e, 'se')}
                 />
               </>

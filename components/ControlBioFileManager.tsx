@@ -45,31 +45,55 @@ export function ControlBioFileManager() {
 
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [subfolder, setSubfolder] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      setSelectedFiles(files);
     }
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) return;
+    if (selectedFiles.length === 0) return;
 
     try {
-      await uploadFile(selectedFile, subfolder || undefined);
-      toast.success('Archivo subido exitosamente');
-      setSelectedFile(null);
+      let successCount = 0;
+      let errorCount = 0;
+
+      // Subir archivos uno por uno para mejor control de errores
+      for (const file of selectedFiles) {
+        try {
+          await uploadFile(file, subfolder || undefined);
+          successCount++;
+        } catch (error: any) {
+          console.error(`Error subiendo ${file.name}:`, error);
+          errorCount++;
+          toast.error(`Error subiendo ${file.name}`, {
+            description: error?.message || 'Error desconocido',
+            duration: 4000
+          });
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(
+          successCount === 1 
+            ? 'Archivo subido exitosamente' 
+            : `${successCount} archivo${successCount > 1 ? 's' : ''} subido${successCount > 1 ? 's' : ''} exitosamente`
+        );
+      }
+
+      setSelectedFiles([]);
       setSubfolder('');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     } catch (error: any) {
       console.error('Error en handleUpload:', error);
-      const errorMessage = error?.message || 'Error desconocido al subir archivo';
+      const errorMessage = error?.message || 'Error desconocido al subir archivos';
       toast.error(`Error: ${errorMessage}`, {
         description: 'El servicio de almacenamiento puede estar temporalmente no disponible. Intenta más tarde.',
         duration: 6000
@@ -181,6 +205,7 @@ export function ControlBioFileManager() {
               <Input
                 ref={fileInputRef}
                 type="file"
+                multiple
                 onChange={handleFileSelect}
                 disabled={uploading}
                 className="flex-1 text-xs sm:text-sm"
@@ -198,20 +223,42 @@ export function ControlBioFileManager() {
                 ) : (
                   <>
                     <Upload className="w-4 h-4" />
-                    Seleccionar Archivo
+                    Seleccionar Archivos
                   </>
                 )}
               </Button>
             </div>
 
-            {selectedFile && (
+            {selectedFiles.length > 0 && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">Archivo seleccionado:</span>
-                  <Badge variant="secondary">{selectedFile.name}</Badge>
-                  <span className="text-sm text-gray-500">
-                    ({formatFileSize(selectedFile.size)})
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-sm font-medium">
+                    {selectedFiles.length === 1 ? 'Archivo seleccionado:' : `${selectedFiles.length} archivos seleccionados:`}
                   </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedFiles([]);
+                      if (fileInputRef.current) {
+                        fileInputRef.current.value = '';
+                      }
+                    }}
+                    disabled={uploading}
+                    className="text-xs"
+                  >
+                    Limpiar
+                  </Button>
+                </div>
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {selectedFiles.map((file, index) => (
+                    <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                      <Badge variant="secondary" className="flex-1 truncate">{file.name}</Badge>
+                      <span className="text-xs text-gray-500 whitespace-nowrap">
+                        ({formatFileSize(file.size)})
+                      </span>
+                    </div>
+                  ))}
                 </div>
                 
                 <div className="flex items-center gap-2">
@@ -234,7 +281,7 @@ export function ControlBioFileManager() {
                     ) : (
                       <>
                         <Upload className="w-4 h-4" />
-                        Subir
+                        Subir {selectedFiles.length > 1 ? `(${selectedFiles.length})` : ''}
                       </>
                     )}
                   </Button>
@@ -244,7 +291,7 @@ export function ControlBioFileManager() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <Spinner className="w-4 h-4" />
-                      <span className="text-sm">Subiendo archivo...</span>
+                      <span className="text-sm">Subiendo archivos...</span>
                     </div>
                     <Progress value={uploadProgress} className="w-full" />
                     <span className="text-sm text-gray-500">{uploadProgress}%</span>

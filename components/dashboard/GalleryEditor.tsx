@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter } from '@dnd-kit/core'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -144,6 +145,7 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
   const [showSettings, setShowSettings] = useState(false)
   const [localLayout, setLocalLayout] = useState<GalleryLayout | null>(null)
   const [localFiles, setLocalFiles] = useState<GalleryFile[]>([])
+  const [activeId, setActiveId] = useState<string | null>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
 
@@ -225,6 +227,51 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
         item.fileId === fileId ? { ...item, ...updates } : item
       )
     })
+  }
+
+  // Manejar el final del drag con @dnd-kit
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, delta } = event
+    
+    if (!currentLayout || !delta) {
+      setActiveId(null)
+      return
+    }
+
+    const draggedItem = currentLayout.items.find(item => item.fileId === active.id)
+    if (!draggedItem) {
+      setActiveId(null)
+      return
+    }
+
+    // Convertir el delta de píxeles a unidades de grid
+    // @dnd-kit proporciona el delta en píxeles desde donde comenzó el drag
+    const deltaXGrid = Math.round(delta.x / currentLayout.settings.gridSize)
+    const deltaYGrid = Math.round(delta.y / currentLayout.settings.gridSize)
+
+    // Calcular nueva posición
+    const newX = Math.max(0, draggedItem.x + deltaXGrid)
+    const newY = Math.max(0, draggedItem.y + deltaYGrid)
+
+    // Limitar a las columnas disponibles (evitar que se salga del grid)
+    const maxX = Math.max(0, currentLayout.settings.columns - draggedItem.width)
+    const finalX = Math.min(newX, maxX)
+
+    // Actualizar posición solo si cambió
+    if (finalX !== draggedItem.x || newY !== draggedItem.y) {
+      handleUpdateItem(draggedItem.fileId, { x: finalX, y: newY })
+    }
+
+    setActiveId(null)
+  }
+
+  // Manejar el inicio del drag para feedback visual
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string)
+    const draggedItem = currentLayout?.items.find(item => item.fileId === event.active.id)
+    if (draggedItem) {
+      setSelectedItem(draggedItem.fileId)
+    }
   }
 
   const handleRemoveItem = (fileId: string) => {
@@ -447,31 +494,70 @@ export function GalleryEditor({ userId, onPreview }: GalleryEditorProps) {
             </div>
           </div>
 
-          <div className="relative overflow-auto border rounded-lg bg-white">
-            <div
-              ref={canvasRef}
-              className="relative"
-              style={canvasStyle}
-            >
-              {currentLayout.items.map((item) => {
-                const file = currentFiles.find(f => f.id === item.fileId)
-                return (
-                  <ResizableImageCard
-                    key={item.fileId}
-                    item={item}
-                    imageUrl={file?.url}
-                    imageName={file?.name || 'Imagen'}
-                    gridSize={currentLayout.settings.gridSize}
-                    gap={currentLayout.settings.gap}
-                    onUpdate={(updates) => handleUpdateItem(item.fileId, updates)}
-                    onRemove={() => handleRemoveItem(item.fileId)}
-                    isSelected={selectedItem === item.fileId}
-                    onSelect={() => setSelectedItem(item.fileId)}
-                  />
-                )
-              })}
+          <DndContext
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="relative overflow-auto border rounded-lg bg-white">
+              <div
+                ref={canvasRef}
+                className="relative"
+                style={canvasStyle}
+              >
+                {currentLayout.items.map((item) => {
+                  const file = currentFiles.find(f => f.id === item.fileId)
+                  return (
+                    <ResizableImageCard
+                      key={item.fileId}
+                      item={item}
+                      imageUrl={file?.url}
+                      imageName={file?.name || 'Imagen'}
+                      gridSize={currentLayout.settings.gridSize}
+                      gap={currentLayout.settings.gap}
+                      onUpdate={(updates) => handleUpdateItem(item.fileId, updates)}
+                      onRemove={() => handleRemoveItem(item.fileId)}
+                      isSelected={selectedItem === item.fileId}
+                      onSelect={() => setSelectedItem(item.fileId)}
+                    />
+                  )
+                })}
+              </div>
             </div>
-          </div>
+            
+            {/* Overlay para el elemento que se está arrastrando */}
+            <DragOverlay>
+              {activeId ? (() => {
+                const draggedItem = currentLayout.items.find(item => item.fileId === activeId)
+                const file = currentFiles.find(f => f.id === activeId)
+                if (!draggedItem || !file) return null
+                
+                return (
+                  <div
+                    style={{
+                      width: `${draggedItem.width * currentLayout.settings.gridSize - currentLayout.settings.gap}px`,
+                      height: `${draggedItem.height * currentLayout.settings.gridSize - currentLayout.settings.gap}px`,
+                      opacity: 0.8,
+                      transform: 'rotate(5deg)',
+                    }}
+                    className="bg-white border-2 border-primary rounded-lg overflow-hidden shadow-2xl"
+                  >
+                    {file.url ? (
+                      <img
+                        src={file.url}
+                        alt={file.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-muted flex items-center justify-center">
+                        <p className="text-xs text-muted-foreground">{file.name}</p>
+                      </div>
+                    )}
+                  </div>
+                )
+              })() : null}
+            </DragOverlay>
+          </DndContext>
         </CardContent>
       </Card>
     </div>

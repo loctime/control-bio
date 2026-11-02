@@ -254,6 +254,7 @@ export default function DashboardPage() {
             <GalleryManager 
               userId={user.uid}
               carousels={carousels}
+              profile={profile}
               onRefresh={async () => {
                 if (!user) return
                 const carouselsQuery = query(collection(db, "apps/controlbio/carousels"), where("userId", "==", user.uid), orderBy("order", "asc"))
